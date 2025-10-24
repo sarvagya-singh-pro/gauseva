@@ -1,0 +1,90 @@
+mutation SeedDatabase @auth(level: NO_ACCESS) @transaction {
+  farm_insertMany(data: [
+    {
+      name: "Happy Cows Farm",
+      location: "Pleasantville",
+      contactPerson: "Farmer Giles",
+      contactEmail: "giles@happycows.com"
+      createdAt: "2024-04-01T12:00:00Z"
+    },
+    {
+      name: "Green Pastures Dairy",
+      location: "Green Valley",
+      contactPerson: "Betsy McDonald",
+      contactEmail: "betsy@greenpastures.com"
+      createdAt: "2024-04-02T14:30:00Z"
+    }
+  ])
+  cattle_insertMany(data: [
+    {
+      farmId: "550e8400-e29b-41d4-a716-446655440000" # IN_PROD: Replace with a valid UUID
+      name: "Daisy",
+      birthDate: "2022-05-15",
+      breed: "Holstein",
+      sex: "Female",
+      uniqueIdentifier: "HOL123456",
+      createdAt: "2024-04-03T08:00:00Z"
+    },
+    {
+      farmId: "550e8400-e29b-41d4-a716-446655440001" # IN_PROD: Replace with a valid UUID
+      name: "Bessie",
+      birthDate: "2021-11-20",
+      breed: "Jersey",
+      sex: "Female",
+      uniqueIdentifier: "JER789012",
+      createdAt: "2024-04-04T10:45:00Z"
+    }
+  ])
+  healthEvent_insertMany(data: [
+    {
+      cattleId: "550e8400-e29b-41d4-a716-446655440002" # IN_PROD: Replace with a valid UUID
+      eventType: "Lameness",
+      eventDate: "2024-03-20",
+      description: "Mild lameness in left hind leg",
+      symptoms: "Reduced weight bearing, shortened stride",
+      createdAt: "2024-04-05T16:00:00Z"
+    },
+    {
+      cattleId: "550e8400-e29b-41d4-a716-446655440003" # IN_PROD: Replace with a valid UUID
+      eventType: "Mastitis",
+      eventDate: "2024-03-25",
+      description: "Inflammation of the udder",
+      symptoms: "Swollen udder, abnormal milk",
+      createdAt: "2024-04-06T09:15:00Z"
+    }
+  ])
+  treatment_insertMany(data: [
+    {
+      cattleId: "550e8400-e29b-41d4-a716-446655440002" # IN_PROD: Replace with a valid UUID
+      administeredBy: "Vet Smith",
+      treatmentDate: "2024-03-21",
+      medication: "Antibiotics",
+      dosage: "5ml",
+      createdAt: "2024-04-07T11:30:00Z"
+    },
+    {
+      cattleId: "550e8400-e29b-41d4-a716-446655440003" # IN_PROD: Replace with a valid UUID
+      administeredBy: "Vet Jones",
+      treatmentDate: "2024-03-26",
+      medication: "Anti-inflammatory",
+      dosage: "10ml",
+      createdAt: "2024-04-08T13:00:00Z"
+    }
+  ])
+  vaccination_insertMany(data: [
+    {
+      cattleId: "550e8400-e29b-41d4-a716-446655440002" # IN_PROD: Replace with a valid UUID
+      vaccineName: "IBR",
+      vaccinationDate: "2024-01-15",
+      administeredBy: "Vet Smith",
+      createdAt: "2024-04-09T15:45:00Z"
+    },
+    {
+      cattleId: "550e8400-e29b-41d4-a716-446655440003" # IN_PROD: Replace with a valid UUID
+      vaccineName: "BVD",
+      vaccinationDate: "2024-02-20",
+      administeredBy: "Vet Jones",
+      createdAt: "2024-04-10T17:00:00Z"
+    }
+  ])
+}

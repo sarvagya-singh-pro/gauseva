@@ -1,0 +1,53 @@
+type Farm @table {
+  name: String!
+  createdAt: Timestamp!
+  location: String
+  contactPerson: String
+  contactEmail: String
+}
+
+type Cattle @table {
+  farm: Farm!
+  uniqueIdentifier: String!
+  breed: String!
+  sex: String!
+  birthDate: Date!
+  createdAt: Timestamp!
+  name: String
+  color: String
+  purchaseDate: Date
+  purchasePrice: Float
+  mother: Cattle
+}
+
+type HealthEvent @table {
+  cattle: Cattle!
+  eventDate: Date!
+  eventType: String!
+  description: String!
+  createdAt: Timestamp!
+  severity: String
+  symptoms: String
+}
+
+type Treatment @table {
+  cattle: Cattle!
+  treatmentDate: Date!
+  medication: String!
+  dosage: String!
+  administeredBy: String!
+  createdAt: Timestamp!
+  notes: String
+  withdrawalPeriod: String
+  healthEvent: HealthEvent
+}
+
+type Vaccination @table {
+  cattle: Cattle!
+  vaccineName: String!
+  vaccinationDate: Date!
+  administeredBy: String!
+  createdAt: Timestamp!
+  batchNumber: String
+  nextDueDate: Date
+}

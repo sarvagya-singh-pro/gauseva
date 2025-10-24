@@ -1,0 +1,35 @@
+mutation CreateFarm @auth(level: USER) {
+  farm_insert(data: {
+    name: "Example Farm",
+    contactPerson: "John Doe",
+    contactEmail: "john.doe@example.com",
+    location: "Some Location"
+  })
+}
+
+query ListCattle @auth(level: USER) {
+  cattles {
+    id
+    name
+    breed
+    birthDate
+  }
+}
+
+mutation RecordVaccination($cattleId: UUID!, $vaccineName: String!, $vaccinationDate: Date!, $administeredBy: String!) @auth(level: USER) {
+  vaccination_insert(data: {
+    cattleId: $cattleId,
+    vaccineName: $vaccineName,
+    vaccinationDate: $vaccinationDate,
+    administeredBy: $administeredBy
+  })
+}
+
+query ListHealthEventsForCattle($cattleId: UUID!) @auth(level: USER) {
+  healthEvents(where: {cattleId: {eq: $cattleId}}) {
+    id
+    eventType
+    eventDate
+    description
+  }
+}
