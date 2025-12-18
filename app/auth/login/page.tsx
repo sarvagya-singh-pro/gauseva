@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion'
 import { Card } from '@/components/ui/card'
-import { Shield, Mail, Lock, Eye, EyeOff, Scan, AlertCircle, ArrowRight } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, Scan, AlertCircle, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
@@ -11,24 +11,44 @@ import { auth, db } from '@/lib/firebase'
 import { doc, getDoc } from 'firebase/firestore'
 import { useAuth } from '@/components/AuthProvider'
 
+// --- TYPES ---
+
+interface MagneticButtonProps {
+  children: React.ReactNode
+  className?: string
+  onClick?: () => void
+  disabled?: boolean
+  type?: "button" | "submit" | "reset"
+}
+
 // --- REUSED COMPONENTS (Magnetic Button) ---
-const MagneticButton = ({ children, className = "", onClick, disabled, type="button" }) => {
-  const ref = useRef(null)
+
+const MagneticButton: React.FC<MagneticButtonProps> = ({ 
+  children, 
+  className = "", 
+  onClick, 
+  disabled, 
+  type = "button" 
+}) => {
+  const ref = useRef<HTMLButtonElement>(null)
   const x = useMotionValue(0)
   const y = useMotionValue(0)
   const springConfig = { damping: 15, stiffness: 150, mass: 0.1 }
   const springX = useSpring(x, springConfig)
   const springY = useSpring(y, springConfig)
 
-  const handleMouseMove = (e) => {
-    if(disabled) return
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if(disabled || !ref.current) return
     const { clientX, clientY } = e
     const { left, top, width, height } = ref.current.getBoundingClientRect()
     x.set((clientX - (left + width / 2)) * 0.3)
     y.set((clientY - (top + height / 2)) * 0.3)
   }
 
-  const handleMouseLeave = () => { x.set(0); y.set(0) }
+  const handleMouseLeave = () => { 
+    x.set(0)
+    y.set(0) 
+  }
 
   return (
     <motion.button
@@ -56,12 +76,12 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // --- AUTH LOGIC (Unchanged) ---
+  // --- AUTH LOGIC ---
   useEffect(() => {
     if (authUser) checkUserRoleAndRedirect(authUser.uid)
   }, [authUser])
 
-  const checkUserRoleAndRedirect = async (uid) => {
+  const checkUserRoleAndRedirect = async (uid: string) => {
     try {
       const userDoc = await getDoc(doc(db, 'users', uid))
       if (userDoc.exists()) {
@@ -77,7 +97,7 @@ export default function LoginPage() {
     }
   }
 
-  const handleEmailLogin = async (e) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(''); setLoading(true)
   
@@ -87,7 +107,9 @@ export default function LoginPage() {
   
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      // Small delay for UX transition smoothness
       await new Promise(resolve => setTimeout(resolve, 1000))
+      
       const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid))
       const doctorDoc = await getDoc(doc(db, 'doctors', email))
       
@@ -99,7 +121,7 @@ export default function LoginPage() {
       } else {
         router.push('/dashboard')
       }
-    } catch (err) {
+    } catch (err: any) {
       if (err.code === 'auth/user-not-found') setError('No account found with this email.')
       else if (err.code === 'auth/wrong-password') setError('Incorrect password.')
       else if (err.code === 'auth/invalid-credential') setError('Invalid email or password.')
@@ -115,7 +137,7 @@ export default function LoginPage() {
     try {
       const result = await signInWithPopup(auth, provider)
       await checkUserRoleAndRedirect(result.user.uid)
-    } catch (err) {
+    } catch (err: any) {
       setError(err.message || 'Failed to login with Google')
     } finally {
       setLoading(false)
@@ -137,8 +159,6 @@ export default function LoginPage() {
         transition={{ duration: 0.8, ease: "circOut" }}
         className="w-full max-w-md relative z-10"
       >
-        {/* Header Logo */}
-   
         {/* Login Card */}
         <div className="relative group">
             {/* Cyberpunk Border Decorations */}

@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion'
 import { 
-  Video, Activity, Heart, Thermometer, AlertTriangle,
+  Video, Activity, Heart, AlertTriangle,
   Brain, Plus, Bell, Shield, X, MapPin, Scale, 
-  Search, ArrowRight, Scan, Signal, Wifi, ChevronRight
+  Search, Scan, ChevronRight, LucideIcon 
 } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -15,25 +15,70 @@ import { useCattleData, useVitalSigns, useDiagnoses } from '@/lib/hooks/useCattl
 import { collection, addDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
+// --- TYPES ---
+
+interface MagneticButtonProps {
+  children: React.ReactNode
+  className?: string
+  onClick?: () => void
+  disabled?: boolean
+  variant?: "primary" | "secondary" | "outline"
+}
+
+interface DashboardCardProps {
+  children?: React.ReactNode
+  className?: string
+  title?: string
+  subtitle?: string
+  icon?: LucideIcon
+  action?: React.ReactNode
+}
+
+interface StatCardProps {
+  label: string
+  value: string | number
+  subtext?: string
+  icon: LucideIcon
+  trend?: "critical" | "optimal"
+}
+
+interface NewCattleForm {
+  name: string
+  breed: string
+  age: string
+  weight: string
+  location: string
+  gender: string
+}
+
 // --- 1. REFINED UI COMPONENTS ---
 
-const MagneticButton = ({ children, className = "", onClick, disabled, variant = "primary" }) => {
-  const ref = useRef(null)
+const MagneticButton: React.FC<MagneticButtonProps> = ({ 
+  children, 
+  className = "", 
+  onClick, 
+  disabled, 
+  variant = "primary" 
+}) => {
+  const ref = useRef<HTMLButtonElement>(null)
   const x = useMotionValue(0)
   const y = useMotionValue(0)
   const springConfig = { damping: 15, stiffness: 150, mass: 0.1 }
   const springX = useSpring(x, springConfig)
   const springY = useSpring(y, springConfig)
 
-  const handleMouseMove = (e) => {
-    if(disabled) return
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if(disabled || !ref.current) return
     const { clientX, clientY } = e
     const { left, top, width, height } = ref.current.getBoundingClientRect()
     x.set((clientX - (left + width / 2)) * 0.3)
     y.set((clientY - (top + height / 2)) * 0.3)
   }
 
-  const handleMouseLeave = () => { x.set(0); y.set(0) }
+  const handleMouseLeave = () => { 
+    x.set(0)
+    y.set(0) 
+  }
 
   // Professional styling variants
   const baseStyle = "relative px-6 py-3 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2"
@@ -59,7 +104,7 @@ const MagneticButton = ({ children, className = "", onClick, disabled, variant =
 }
 
 // Clean, Professional Card Component
-const DashboardCard = ({ children, className = "", title, subtitle, icon: Icon, action }) => (
+const DashboardCard: React.FC<DashboardCardProps> = ({ children, className = "", title, subtitle, icon: Icon, action }) => (
   <div className={`bg-stone-900/40 backdrop-blur-md border border-stone-800 rounded-xl p-6 ${className}`}>
     {(title || Icon) && (
       <div className="flex justify-between items-start mb-6">
@@ -81,7 +126,7 @@ const DashboardCard = ({ children, className = "", title, subtitle, icon: Icon, 
   </div>
 )
 
-const StatCard = ({ label, value, subtext, icon: Icon, trend }) => (
+const StatCard: React.FC<StatCardProps> = ({ label, value, subtext, icon: Icon, trend }) => (
   <DashboardCard className="hover:border-stone-700 transition-colors">
     <div className="flex justify-between items-start mb-4">
       <div className="p-2 bg-stone-800/50 rounded-lg">
@@ -123,11 +168,11 @@ export default function Dashboard() {
   const { user: authUser } = useAuth()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
-  const [selectedCattleId, setSelectedCattleId] = useState(null)
+  const [selectedCattleId, setSelectedCattleId] = useState<string | null>(null)
   const [showAddCattle, setShowAddCattle] = useState(false)
   
   // Form State
-  const [newCattle, setNewCattle] = useState({
+  const [newCattle, setNewCattle] = useState<NewCattleForm>({
     name: '', breed: '', age: '', weight: '', location: '', gender: 'female'
   })
 
@@ -184,7 +229,6 @@ export default function Dashboard() {
   }
 
   const handleCallVet = async () => {
-    // (Same logic as before)
     window.location.href = `/consultation?room=demo-room` 
   }
 

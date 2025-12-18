@@ -4,29 +4,53 @@ import React, { useRef } from 'react'
 import { motion, useMotionValue, useSpring } from 'framer-motion'
 import { 
   Shield, Heart, Users, Target, Sparkles, Video, 
-  Brain, Camera, Activity, Phone, Mail, MapPin, 
-  Scan, ArrowRight, Signal
+  Brain, Camera, Activity, Mail, MapPin, 
+  ArrowRight, LucideIcon 
 } from 'lucide-react'
-import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 
+// --- TYPES ---
+
+interface MagneticButtonProps {
+  children: React.ReactNode
+  className?: string
+  onClick?: () => void
+}
+
+interface TechCardProps {
+  children: React.ReactNode
+  className?: string
+  title?: string
+  icon?: LucideIcon
+}
+
+interface FeatureItem {
+  icon: LucideIcon
+  title: string
+  description: string
+}
+
 // --- REUSED: MAGNETIC BUTTON ---
-const MagneticButton = ({ children, className = "", onClick }) => {
-  const ref = useRef(null)
+const MagneticButton: React.FC<MagneticButtonProps> = ({ children, className = "", onClick }) => {
+  const ref = useRef<HTMLButtonElement>(null)
   const x = useMotionValue(0)
   const y = useMotionValue(0)
   const springConfig = { damping: 15, stiffness: 150, mass: 0.1 }
   const springX = useSpring(x, springConfig)
   const springY = useSpring(y, springConfig)
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!ref.current) return
     const { clientX, clientY } = e
     const { left, top, width, height } = ref.current.getBoundingClientRect()
     x.set((clientX - (left + width / 2)) * 0.3)
     y.set((clientY - (top + height / 2)) * 0.3)
   }
 
-  const handleMouseLeave = () => { x.set(0); y.set(0) }
+  const handleMouseLeave = () => { 
+    x.set(0)
+    y.set(0) 
+  }
 
   return (
     <motion.button
@@ -43,7 +67,7 @@ const MagneticButton = ({ children, className = "", onClick }) => {
 }
 
 // --- REUSED: TECH CARD ---
-const TechCard = ({ children, className = "", title, icon: Icon }) => (
+const TechCard: React.FC<TechCardProps> = ({ children, className = "", title, icon: Icon }) => (
   <div className={`relative bg-stone-900 border border-stone-800 p-8 overflow-hidden group ${className}`}>
     {/* Corner Accents */}
     <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-600/50" />
@@ -75,7 +99,7 @@ const TechCard = ({ children, className = "", title, icon: Icon }) => (
 )
 
 export default function AboutPage() {
-  const features = [
+  const features: FeatureItem[] = [
     {
       icon: Camera,
       title: 'VISUAL_MONITORING',
@@ -270,6 +294,12 @@ export default function AboutPage() {
           </div>
         </section>
 
+        <style jsx global>{`
+          .text-stroke-white {
+            -webkit-text-stroke: 1px rgba(255,255,255,0.8);
+            color: transparent;
+          }
+        `}</style>
       </div>
     </>
   )

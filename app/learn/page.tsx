@@ -1,24 +1,34 @@
 'use client'
 
 import { useState } from 'react'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { 
-  BookOpen, Search, AlertTriangle, Stethoscope, 
+  Search, AlertTriangle, Stethoscope, 
   Shield, ArrowLeft, Phone, CheckCircle2, 
   TrendingUp, Droplet, Bug, Heart, Flame,
-  Activity, ArrowRight
+  ArrowRight, LucideIcon
 } from 'lucide-react'
 import Navbar from '@/components/Navbar'
 import { motion, AnimatePresence } from 'framer-motion'
 
-export default function LearnPage() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedDisease, setSelectedDisease] = useState(null)
+// --- TYPES ---
 
-  const diseases = [
+interface Disease {
+  id: string
+  name: string
+  icon: LucideIcon
+  severity: 'critical' | 'high' | 'moderate' | 'low'
+  code: string
+  description: string
+  symptoms: string[]
+  treatment: string[]
+  prevention: string[]
+}
+
+export default function LearnPage() {
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [selectedDisease, setSelectedDisease] = useState<Disease | null>(null)
+
+  const diseases: Disease[] = [
     {
       id: 'fmd',
       name: 'Foot & Mouth Disease',
