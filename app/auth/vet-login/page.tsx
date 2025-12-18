@@ -12,16 +12,30 @@ import { auth, db } from '@/lib/firebase'
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
 
 // --- REUSED: MAGNETIC BUTTON ---
-const MagneticButton = ({ children, className = "", onClick, disabled, type="button" }) => {
-  const ref = useRef(null)
+interface MagneticButtonProps {
+  children: React.ReactNode;
+  className?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  type?: "button" | "submit" | "reset";
+}
+
+const MagneticButton: React.FC<MagneticButtonProps> = ({ 
+  children, 
+  className = "", 
+  onClick, 
+  disabled, 
+  type = "button" 
+}) => {
+  const ref = useRef<HTMLButtonElement>(null)
   const x = useMotionValue(0)
   const y = useMotionValue(0)
   const springConfig = { damping: 15, stiffness: 150, mass: 0.1 }
   const springX = useSpring(x, springConfig)
   const springY = useSpring(y, springConfig)
 
-  const handleMouseMove = (e) => {
-    if(disabled) return
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if(disabled || !ref.current) return
     const { clientX, clientY } = e
     const { left, top, width, height } = ref.current.getBoundingClientRect()
     x.set((clientX - (left + width / 2)) * 0.3)
@@ -55,7 +69,7 @@ export default function VetLoginPage() {
   const [loading, setLoading] = useState(false)
 
   // --- AUTH LOGIC (Unchanged) ---
-  const handleVetLogin = async (e) => {
+  const handleVetLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
@@ -90,7 +104,7 @@ export default function VetLoginPage() {
       await auth.signOut()
       setError('ACCESS DENIED: Account lacks veterinary privileges.')
       setLoading(false)
-    } catch (err) {
+    } catch (err: any) {
       if (err.code === 'auth/user-not-found') setError('No account found with these credentials.')
       else if (err.code === 'auth/wrong-password') setError('Incorrect password.')
       else if (err.code === 'auth/invalid-credential') setError('Invalid credentials.')
@@ -126,7 +140,7 @@ export default function VetLoginPage() {
       await auth.signOut()
       setError('ACCESS DENIED: Google account not authorized.')
       setLoading(false)
-    } catch (err) {
+    } catch (err: any) {
       setError(err.message || 'Failed to login with Google')
       setLoading(false)
     }
@@ -139,7 +153,7 @@ export default function VetLoginPage() {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#1c1917_1px,transparent_1px),linear-gradient(to_bottom,#1c1917_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20 pointer-events-none" />
       
       {/* Warning Tape Effect */}
-      <div className="absolute top-0 left-0 w-full h-1  opacity-50" />
+      <div className="absolute top-0 left-0 w-full h-1 bg-[repeating-linear-gradient(45deg,#b45309,#b45309_10px,#0c0a09_10px,#0c0a09_20px)] opacity-50" />
 
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
@@ -148,7 +162,20 @@ export default function VetLoginPage() {
         className="w-full max-w-md relative z-10"
       >
         {/* Header Logo */}
-      
+        <div className="text-center mb-10">
+          <Link href="/" className="inline-flex flex-col items-center gap-2 group">
+             <div className="relative">
+                <div className="absolute inset-0 bg-amber-500 blur-lg opacity-10 group-hover:opacity-30 transition-opacity" />
+                <Shield className="h-10 w-10 text-stone-300 relative z-10" />
+             </div>
+             <div className="text-3xl font-black text-white tracking-tighter">
+                GAU <span className="text-stone-800 text-stroke-white">SEVA</span>
+             </div>
+             <div className="flex items-center gap-2 text-[10px] font-mono text-amber-600 tracking-[0.2em] uppercase bg-amber-950/30 px-3 py-1 border border-amber-900/50 rounded">
+                <Stethoscope className="w-3 h-3" /> Veterinary_Uplink
+             </div>
+          </Link>
+        </div>
 
         {/* Login Card */}
         <div className="relative group">

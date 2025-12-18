@@ -17,16 +17,30 @@ import { doc, setDoc } from 'firebase/firestore'
 import { useAuth } from '@/components/AuthProvider'
 
 // --- REUSABLE: MAGNETIC BUTTON ---
-const MagneticButton = ({ children, className = "", onClick, disabled, type="button" }) => {
-  const ref = useRef(null)
+interface MagneticButtonProps {
+  children: React.ReactNode;
+  className?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  type?: "button" | "submit" | "reset";
+}
+
+const MagneticButton: React.FC<MagneticButtonProps> = ({ 
+  children, 
+  className = "", 
+  onClick, 
+  disabled, 
+  type = "button" 
+}) => {
+  const ref = useRef<HTMLButtonElement>(null)
   const x = useMotionValue(0)
   const y = useMotionValue(0)
   const springConfig = { damping: 15, stiffness: 150, mass: 0.1 }
   const springX = useSpring(x, springConfig)
   const springY = useSpring(y, springConfig)
 
-  const handleMouseMove = (e) => {
-    if(disabled) return
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if(disabled || !ref.current) return
     const { clientX, clientY } = e
     const { left, top, width, height } = ref.current.getBoundingClientRect()
     x.set((clientX - (left + width / 2)) * 0.3)
@@ -65,7 +79,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
 
   // --- AUTH LOGIC (Unchanged) ---
-  const handleSignup = async (e) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
@@ -89,7 +103,7 @@ export default function SignupPage() {
         createdAt: new Date()
       })
       router.push('/dashboard')
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
       setError(err.message || 'Failed to create account')
     } finally {
@@ -115,7 +129,7 @@ export default function SignupPage() {
         createdAt: new Date()
       })
       router.push('/dashboard')
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
       setError(err.message || 'Failed to sign up with Google')
     } finally {
@@ -136,7 +150,18 @@ export default function SignupPage() {
         className="w-full max-w-md relative z-10"
       >
         {/* Header Logo */}
-     
+        <div className="text-center mb-10">
+          <Link href="/" className="inline-flex flex-col items-center gap-2 group">
+             <div className="relative">
+                <div className="absolute inset-0 bg-amber-500 blur-lg opacity-10 group-hover:opacity-30 transition-opacity" />
+                <Shield className="h-10 w-10 text-stone-300 relative z-10" />
+             </div>
+             <div className="text-3xl font-black text-white tracking-tighter">
+                GAU <span className="text-stone-800 text-stroke-white">SEVA</span>
+             </div>
+             <div className="text-[10px] font-mono text-stone-500 tracking-[0.2em] uppercase">Non-Profit Initiative</div>
+          </Link>
+        </div>
 
         {/* Signup Card */}
         <div className="relative group">

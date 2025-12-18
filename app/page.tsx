@@ -1,15 +1,40 @@
 'use client'
 
 import React, { useRef, useState } from 'react'
-import { motion, useScroll, useSpring, useMotionValue } from 'framer-motion'
-import { ArrowRight, Wifi, Video, Brain, Activity, Heart, Thermometer, Database, Upload, Scan, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { motion, useScroll, useSpring, useMotionValue, useTransform } from 'framer-motion'
+import { 
+  ArrowRight, Wifi, Video, Brain, Activity, Heart, Thermometer, Database, 
+  Upload, Scan, Loader2, CheckCircle2, AlertCircle, TrendingUp, User, 
+  Signal, ShieldCheck, Mic, PhoneOff, LucideIcon 
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
-import { TrendingUp,User,Signal,ShieldCheck,Mic,PhoneOff } from 'lucide-react'
+
+// --- TYPES ---
+
+interface MagneticButtonProps {
+  children: React.ReactNode
+  className?: string
+  onClick?: () => void
+}
+
+interface AnalysisResult {
+  status: string
+  confidence: string
+  health: string
+}
+
+interface FeatureItem {
+  title: string
+  sub: string
+  desc: string
+  icon: LucideIcon
+}
+
 // --- 1. PHYSICS COMPONENTS ---
 
-const MagneticButton = ({ children, className = "", onClick }) => {
-  const ref = useRef(null)
+const MagneticButton: React.FC<MagneticButtonProps> = ({ children, className = "", onClick }) => {
+  const ref = useRef<HTMLButtonElement>(null)
   const x = useMotionValue(0)
   const y = useMotionValue(0)
   
@@ -17,7 +42,8 @@ const MagneticButton = ({ children, className = "", onClick }) => {
   const springX = useSpring(x, springConfig)
   const springY = useSpring(y, springConfig)
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!ref.current) return
     const { clientX, clientY } = e
     const { left, top, width, height } = ref.current.getBoundingClientRect()
     const centerX = left + width / 2
@@ -48,13 +74,13 @@ const MagneticButton = ({ children, className = "", onClick }) => {
 // --- 2. NEW: INTERACTIVE AI DEMO COMPONENT ---
 
 const InteractiveAIDemo = () => {
-  const [file, setFile] = useState(null)
+  const [file, setFile] = useState<string | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [result, setResult] = useState(null)
-  const fileInputRef = useRef(null)
+  const [result, setResult] = useState<AnalysisResult | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0]
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0]
     if (selectedFile) {
       setFile(URL.createObjectURL(selectedFile))
       setResult(null)
@@ -110,7 +136,7 @@ const InteractiveAIDemo = () => {
                             className="hidden" 
                         />
                         <Button 
-                            onClick={() => fileInputRef.current.click()}
+                            onClick={() => fileInputRef.current?.click()}
                             className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
                         >
                             Select File
@@ -276,7 +302,7 @@ const SchematicReveal = () => {
 
 // 3D Card Stack
 const FeatureStack = () => {
-    const features = [
+    const features: FeatureItem[] = [
         { 
             title: "IOT COLLAR", 
             sub: "Telemetry", 
@@ -343,40 +369,28 @@ export default function GauSevaEngineering() {
 
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 px-6 py-6 flex justify-between items-center bg-stone-950/80 backdrop-blur-md border-b border-stone-800/50">
-    {/* 1. Logo Section (Unchanged) */}
-    <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-full border border-stone-600 bg-stone-800 grayscale flex items-center justify-center overflow-hidden">
-            <Image className="object-cover" width={40} height={40} src="/logo.jpeg" alt="Logo" />
-        </div>
-        <div className="flex flex-col">
-            <span className="font-bold tracking-tighter leading-none text-white">GAU SEVA</span>
-            <span className="text-[9px] font-mono text-amber-600">NON-PROFIT INITIATIVE</span>
-        </div>
-    </div>
-    
-    {/* 2. New Routes (Adapted to your Design) */}
-    {/* Changed 'hidden md:flex' to 'hidden lg:flex' if space gets tight, or keep 'md:flex' */}
-    <div className="hidden md:flex gap-6 font-mono text-xs tracking-widest text-stone-400">
-        <a href="#resources" className="hover:text-amber-500 transition-colors">[ RESOURCES ]</a>
-        <a href="#about" className="hover:text-amber-500 transition-colors">[ ABOUT ]</a>
-        <a href="#dashboard" className="hover:text-amber-500 transition-colors">[ DASHBOARD ]</a>
-        <a href="#vet" className="hover:text-amber-500 transition-colors text-amber-600/50 hover:text-amber-500">[ VET DASHBOARD ]</a>
-    </div>
+          <div className="flex items-center gap-4">
+               <div className="w-10 h-10 rounded-full border border-stone-600 bg-stone-800 grayscale flex items-center justify-center overflow-hidden">
+                 <Image className="object-cover" width={40} height={40} src="/logo.jpeg" alt="Logo" />
+               </div>
+               <div className="flex flex-col">
+                  <span className="font-bold tracking-tighter leading-none text-white">GAU SEVA</span>
+                  <span className="text-[9px] font-mono text-amber-600">NON-PROFIT INITIATIVE</span>
+               </div>
+          </div>
+          
+          <div className="hidden md:flex gap-8 font-mono text-xs tracking-widest text-stone-400">
+              <a href="#monitor" className="hover:text-amber-500 transition-colors">[ MONITOR ]</a>
+              <a href="#demo" className="hover:text-amber-500 transition-colors">[ DEMO ]</a>
+              <a href="#network" className="hover:text-amber-500 transition-colors">[ NETWORK ]</a>
+          </div>
 
-    {/* 3. Actions: Login + Get Started */}
-    <div className="flex items-center gap-6">
-        {/* Added Login Link */}
-        <a href="/login" className="hidden md:block font-mono text-xs font-bold text-stone-500 hover:text-white transition-colors">
-            // LOGIN
-        </a>
-
-        {/* Updated Button Text */}
-        <MagneticButton className="px-6 py-2 bg-amber-600 border border-amber-600 text-stone-950 rounded-full hover:bg-amber-500 transition-colors duration-300">
-            <span className="font-bold text-xs">GET STARTED</span>
-        </MagneticButton>
-    </div>
-</nav>
-
+          <div className="flex gap-4">
+            <MagneticButton className="px-6 py-2 bg-amber-600 border border-amber-600 text-stone-950 rounded-full hover:bg-amber-500 transition-colors duration-300">
+                <span className="font-bold text-xs">JOIN FREE</span>
+            </MagneticButton>
+          </div>
+      </nav>
 
       {/* Hero Section */}
       <header className="relative min-h-screen flex flex-col justify-center px-6 pt-32 pb-20">
@@ -554,6 +568,7 @@ export default function GauSevaEngineering() {
                  </div>
             </div>
         </section>
+
       {/* SECTION: DIAGNOSTIC REVEAL */}
       <section id="monitor" className="px-6 py-12">
           <div className="max-w-[90vw] mx-auto flex justify-between items-end mb-8 border-b border-stone-800 pb-4">
@@ -573,10 +588,11 @@ export default function GauSevaEngineering() {
             <InteractiveAIDemo />
           </div>
       </section>
+
       <section className="px-6 py-32 bg-stone-950 border-t border-stone-900 relative overflow-hidden">
             {/* Background Texture */}
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#1c1917_1px,transparent_1px),linear-gradient(to_bottom,#1c1917_1px,transparent_1px)] bg-[size:4rem_4rem] -z-10 opacity-20" />
-
+            
             <div className="max-w-[90vw] mx-auto">
                 <div className="grid lg:grid-cols-2 gap-16 items-center">
                     
@@ -720,6 +736,7 @@ export default function GauSevaEngineering() {
                 </div>
             </div>
         </section>
+
       {/* SECTION: ARCHITECTURE STACK */}
       <section id="network" className="px-6 py-32 bg-stone-950">
           <div className="max-w-[90vw] mx-auto mb-16">

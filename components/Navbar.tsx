@@ -2,30 +2,42 @@
 
 import React, { useRef } from 'react'
 import { motion, useMotionValue, useSpring } from 'framer-motion'
-import { LogOut, User, Shield, Activity } from 'lucide-react'
+import { LogOut, User } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/AuthProvider'
 import { useAppStore } from '@/lib/AppContext'
 import Image from 'next/image'
 
+// --- TYPES ---
+interface MagneticButtonProps {
+  children: React.ReactNode
+  className?: string
+  onClick?: () => void
+}
+
 // --- REUSABLE: MAGNETIC BUTTON ---
-const MagneticButton = ({ children, className = "", onClick }) => {
-  const ref = useRef(null)
+const MagneticButton: React.FC<MagneticButtonProps> = ({ children, className = "", onClick }) => {
+  const ref = useRef<HTMLButtonElement>(null)
   const x = useMotionValue(0)
   const y = useMotionValue(0)
+  
   const springConfig = { damping: 15, stiffness: 150, mass: 0.1 }
   const springX = useSpring(x, springConfig)
   const springY = useSpring(y, springConfig)
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!ref.current) return
     const { clientX, clientY } = e
     const { left, top, width, height } = ref.current.getBoundingClientRect()
     x.set((clientX - (left + width / 2)) * 0.3)
     y.set((clientY - (top + height / 2)) * 0.3)
   }
 
-  const handleMouseLeave = () => { x.set(0); y.set(0) }
+  const handleMouseLeave = () => { 
+    x.set(0)
+    y.set(0) 
+  }
 
   return (
     <motion.button
@@ -62,9 +74,7 @@ export default function Navbar() {
         {/* 1. Logo Section */}
         <Link href="/" className="flex items-center gap-4 group">
            <div className="w-10 h-10 rounded-full border border-stone-600 bg-stone-800 grayscale flex items-center justify-center overflow-hidden">
-                    <Image className="object-cover" width={40} height={40} src="/logo.jpeg" alt="Logo" />
-       
-            
+             <Image className="object-cover" width={40} height={40} src="/logo.jpeg" alt="Logo" />
           </div>
           <div className="flex flex-col">
             <span className="font-bold tracking-tighter leading-none text-white text-lg">GAU SEVA</span>

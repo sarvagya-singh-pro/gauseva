@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Calendar, Clock, Video, User, CheckCircle2, X, AlertCircle, Inbox, Activity, ChevronRight } from 'lucide-react'
+import { Calendar, Clock, Video, User, CheckCircle2, X, AlertCircle, Inbox, Activity, ChevronRight, LucideIcon } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
@@ -13,9 +13,42 @@ import { db } from '@/lib/firebase'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/lib/AppContext'
 
+// --- TYPES ---
+interface Appointment {
+  id: string
+  farmerId: string
+  farmerName: string
+  vetId?: string
+  vetName?: string
+  cattleId?: string
+  cattleName?: string
+  scheduledDate: Date
+  scheduledTime: string
+  duration: number
+  reason: string
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled'
+  roomUrl?: string
+  createdAt: Date
+}
+
+interface StatCardProps {
+  label: string
+  value: number | string
+  icon: LucideIcon
+  colorClass: string
+}
+
+interface FilterButtonProps {
+  active: boolean
+  label: string
+  count: number
+  onClick: () => void
+  color?: string
+}
+
 // --- REUSABLE COMPONENTS ---
 
-const StatCard = ({ label, value, icon: Icon, colorClass }) => (
+const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, colorClass }) => (
   <div className="bg-stone-900 border border-stone-800 p-6 flex items-center justify-between group hover:border-stone-700 transition-all">
     <div>
       <p className="text-stone-500 text-xs font-mono uppercase tracking-wider mb-2">{label}</p>
@@ -27,7 +60,7 @@ const StatCard = ({ label, value, icon: Icon, colorClass }) => (
   </div>
 )
 
-const FilterButton = ({ active, label, count, onClick, color = "blue" }) => (
+const FilterButton: React.FC<FilterButtonProps> = ({ active, label, count, onClick }) => (
   <button
     onClick={onClick}
     className={`
@@ -52,9 +85,9 @@ export default function VetDashboard() {
   const { user: authUser } = useAuth()
   const { user: storeUser } = useAppStore()
   const router = useRouter()
-  const [pendingAppointments, setPendingAppointments] = useState([])
-  const [myAppointments, setMyAppointments] = useState([])
-  const [filter, setFilter] = useState('pending')
+  const [pendingAppointments, setPendingAppointments] = useState<Appointment[]>([])
+  const [myAppointments, setMyAppointments] = useState<Appointment[]>([])
+  const [filter, setFilter] = useState<'pending' | 'my-appointments'>('pending')
   const [loading, setLoading] = useState(true)
 
   // --- AUTH CHECKS ---
@@ -73,22 +106,24 @@ export default function VetDashboard() {
     const pendingQuery = query(collection(db, 'appointments'), where('status', '==', 'pending'))
     const unsubscribePending = onSnapshot(pendingQuery, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
-        id: doc.id, ...doc.data(),
+        id: doc.id,
+        ...doc.data(),
         scheduledDate: doc.data().scheduledDate?.toDate() || new Date(),
         createdAt: doc.data().createdAt?.toDate() || new Date()
-      }))
-      setPendingAppointments(data.sort((a, b) => a.scheduledDate - b.scheduledDate))
+      })) as Appointment[]
+      setPendingAppointments(data.sort((a, b) => a.scheduledDate.getTime() - b.scheduledDate.getTime()))
     })
 
     // 2. My Assigned Appointments
     const myQuery = query(collection(db, 'appointments'), where('vetId', '==', authUser.uid))
     const unsubscribeMy = onSnapshot(myQuery, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
-        id: doc.id, ...doc.data(),
+        id: doc.id,
+        ...doc.data(),
         scheduledDate: doc.data().scheduledDate?.toDate() || new Date(),
         createdAt: doc.data().createdAt?.toDate() || new Date()
-      }))
-      setMyAppointments(data.sort((a, b) => a.scheduledDate - b.scheduledDate))
+      })) as Appointment[]
+      setMyAppointments(data.sort((a, b) => a.scheduledDate.getTime() - b.scheduledDate.getTime()))
       setLoading(false)
     })
 
@@ -96,7 +131,7 @@ export default function VetDashboard() {
   }, [authUser])
 
   // --- ACTIONS ---
-  const acceptAppointment = async (id) => {
+  const acceptAppointment = async (id: string) => {
     if (!authUser) return
     try {
       const res = await fetch('/api/create-room', { method: 'POST' })
@@ -111,28 +146,29 @@ export default function VetDashboard() {
     } catch (err) { console.error(err); alert('Failed to accept') }
   }
 
-  const cancelAppointment = async (id) => {
+  const cancelAppointment = async (id: string) => {
     if (!confirm('Cancel appointment?')) return
     await updateDoc(doc(db, 'appointments', id), { status: 'cancelled', cancelledBy: 'vet', cancelledAt: new Date() })
   }
 
-  const completeAppointment = async (id) => {
+  const completeAppointment = async (id: string) => {
     if (!confirm('Mark completed?')) return
     await updateDoc(doc(db, 'appointments', id), { status: 'completed', completedAt: new Date() })
   }
 
-  const joinAppointment = (apt) => {
+  const joinAppointment = (apt: Appointment) => {
     if (apt.roomUrl) router.push(`/consultation?room=${encodeURIComponent(apt.roomUrl)}`)
   }
 
-  const canJoin = (apt) => {
-    const now = new Date(); const aptTime = new Date(apt.scheduledDate)
-    const diff = Math.floor((aptTime - now) / 60000)
+  const canJoin = (apt: Appointment) => {
+    const now = new Date(); 
+    const aptTime = new Date(apt.scheduledDate)
+    const diff = Math.floor((aptTime.getTime() - now.getTime()) / 60000)
     return diff <= 10 && diff >= -60 && apt.status === 'confirmed'
   }
 
   // --- RENDER HELPERS ---
-  const getStatusStyle = (status) => {
+  const getStatusStyle = (status: Appointment['status']) => {
     switch (status) {
       case 'confirmed': return 'text-green-500 border-green-900/50 bg-green-950/20'
       case 'pending': return 'text-amber-500 border-amber-900/50 bg-amber-950/20'
@@ -172,7 +208,7 @@ export default function VetDashboard() {
            </div>
            <div className="text-right hidden md:block">
               <div className="text-stone-500 text-xs font-mono mb-1">LOGGED_IN_AS</div>
-              <div className="text-white font-bold">{authUser.displayName || 'DR. UNKNOWN'}</div>
+              <div className="text-white font-bold">{authUser?.displayName || 'DR. UNKNOWN'}</div>
            </div>
         </div>
 
