@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
+import { Router,useRouter } from 'next/router'
 
 // --- TYPES ---
 
@@ -360,7 +361,7 @@ const FeatureStack = () => {
 export default function GauSevaEngineering() {
   const { scrollYProgress } = useScroll()
   const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 })
-  
+  const router=useRouter()
   return (
     <div className="bg-stone-950 min-h-screen text-stone-200 font-sans selection:bg-amber-600 selection:text-white overflow-x-hidden">
       
@@ -386,7 +387,7 @@ export default function GauSevaEngineering() {
           </div>
 
           <div className="flex gap-4">
-            <MagneticButton className="px-6 py-2 bg-amber-600 border border-amber-600 text-stone-950 rounded-full hover:bg-amber-500 transition-colors duration-300">
+            <MagneticButton onClick={()=>{router.push('/dashbaord')}} className="px-6 py-2 bg-amber-600 border border-amber-600 text-stone-950 rounded-full hover:bg-amber-500 transition-colors duration-300">
                 <span className="font-bold text-xs">JOIN FREE</span>
             </MagneticButton>
           </div>
