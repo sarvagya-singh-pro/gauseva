@@ -1,391 +1,326 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Calendar, Clock, Video, User, CheckCircle2, X, AlertCircle } from 'lucide-react'
+import { Calendar, Clock, Video, User, CheckCircle2, X, AlertCircle, Inbox, Activity, ChevronRight } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/lib/AppContext'
 
-interface Appointment {
-  id: string
-  farmerId: string
-  farmerName: string
-  vetId?: string
-  vetName?: string
-  cattleId?: string
-  cattleName?: string
-  scheduledDate: Date
-  scheduledTime: string
-  duration: number
-  reason: string
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled'
-  roomUrl?: string
-  createdAt: Date
-}
+// --- REUSABLE COMPONENTS ---
+
+const StatCard = ({ label, value, icon: Icon, colorClass }) => (
+  <div className="bg-stone-900 border border-stone-800 p-6 flex items-center justify-between group hover:border-stone-700 transition-all">
+    <div>
+      <p className="text-stone-500 text-xs font-mono uppercase tracking-wider mb-2">{label}</p>
+      <p className="text-4xl font-bold text-white tracking-tight">{value}</p>
+    </div>
+    <div className={`p-3 rounded-lg bg-stone-950 border border-stone-800 ${colorClass}`}>
+      <Icon className="h-6 w-6" />
+    </div>
+  </div>
+)
+
+const FilterButton = ({ active, label, count, onClick, color = "blue" }) => (
+  <button
+    onClick={onClick}
+    className={`
+      relative px-6 py-3 text-sm font-bold font-mono uppercase tracking-wider transition-all
+      border-b-2 
+      ${active 
+        ? 'text-white border-amber-600 bg-stone-900/50' 
+        : 'text-stone-500 border-transparent hover:text-stone-300 hover:bg-stone-900/30'
+      }
+    `}
+  >
+    {label}
+    {count > 0 && (
+      <span className={`ml-2 px-1.5 py-0.5 text-[10px] rounded text-stone-950 ${active ? 'bg-amber-600' : 'bg-stone-600'}`}>
+        {count}
+      </span>
+    )}
+  </button>
+)
 
 export default function VetDashboard() {
   const { user: authUser } = useAuth()
   const { user: storeUser } = useAppStore()
   const router = useRouter()
-  const [pendingAppointments, setPendingAppointments] = useState<Appointment[]>([])
-  const [myAppointments, setMyAppointments] = useState<Appointment[]>([])
-  const [filter, setFilter] = useState<'pending' | 'my-appointments'>('pending')
+  const [pendingAppointments, setPendingAppointments] = useState([])
+  const [myAppointments, setMyAppointments] = useState([])
+  const [filter, setFilter] = useState('pending')
   const [loading, setLoading] = useState(true)
 
+  // --- AUTH CHECKS ---
   useEffect(() => {
-    if (!authUser) {
-      router.push('/auth/vet-login')
-      return
-    }
-
+    if (!authUser) { router.push('/auth/vet-login'); return }
     if (storeUser && storeUser.role !== 'vet' && storeUser.role !== 'doctor') {
-      console.log('User is not a vet, redirecting to farmer dashboard')
-      router.push('/dashboard')
-      return
+      router.push('/dashboard'); return
     }
   }, [authUser, storeUser, router])
 
+  // --- DATA FETCHING ---
   useEffect(() => {
     if (!authUser) return
 
-    const pendingQuery = query(
-      collection(db, 'appointments'),
-      where('status', '==', 'pending')
-    )
-
+    // 1. Pending Requests (Global)
+    const pendingQuery = query(collection(db, 'appointments'), where('status', '==', 'pending'))
     const unsubscribePending = onSnapshot(pendingQuery, (snapshot) => {
-      const appointmentData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id, ...doc.data(),
         scheduledDate: doc.data().scheduledDate?.toDate() || new Date(),
         createdAt: doc.data().createdAt?.toDate() || new Date()
-      } as Appointment))
-      
-      setPendingAppointments(appointmentData.sort((a, b) => 
-        a.scheduledDate.getTime() - b.scheduledDate.getTime()
-      ))
+      }))
+      setPendingAppointments(data.sort((a, b) => a.scheduledDate - b.scheduledDate))
     })
 
-    const myQuery = query(
-      collection(db, 'appointments'),
-      where('vetId', '==', authUser.uid)
-    )
-
+    // 2. My Assigned Appointments
+    const myQuery = query(collection(db, 'appointments'), where('vetId', '==', authUser.uid))
     const unsubscribeMy = onSnapshot(myQuery, (snapshot) => {
-      const appointmentData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id, ...doc.data(),
         scheduledDate: doc.data().scheduledDate?.toDate() || new Date(),
         createdAt: doc.data().createdAt?.toDate() || new Date()
-      } as Appointment))
-      
-      setMyAppointments(appointmentData.sort((a, b) => 
-        a.scheduledDate.getTime() - b.scheduledDate.getTime()
-      ))
+      }))
+      setMyAppointments(data.sort((a, b) => a.scheduledDate - b.scheduledDate))
       setLoading(false)
     })
 
-    return () => {
-      unsubscribePending()
-      unsubscribeMy()
-    }
+    return () => { unsubscribePending(); unsubscribeMy() }
   }, [authUser])
 
-  const acceptAppointment = async (appointmentId: string) => {
+  // --- ACTIONS ---
+  const acceptAppointment = async (id) => {
     if (!authUser) return
-
     try {
-      const response = await fetch('/api/create-room', { method: 'POST' })
-      const { url } = await response.json()
-
-      await updateDoc(doc(db, 'appointments', appointmentId), {
+      const res = await fetch('/api/create-room', { method: 'POST' })
+      const { url } = await res.json()
+      await updateDoc(doc(db, 'appointments', id), {
         status: 'confirmed',
         vetId: authUser.uid,
         vetName: authUser.displayName || 'Veterinarian',
         roomUrl: url,
         confirmedAt: new Date()
       })
-
-      alert('Appointment accepted! Farmer will be notified.')
-    } catch (error) {
-      console.error('Error accepting appointment:', error)
-      alert('Failed to accept appointment')
-    }
+    } catch (err) { console.error(err); alert('Failed to accept') }
   }
 
-  const cancelAppointment = async (appointmentId: string) => {
-    if (!confirm('Are you sure you want to cancel this appointment?')) return
-
-    try {
-      await updateDoc(doc(db, 'appointments', appointmentId), {
-        status: 'cancelled',
-        cancelledBy: 'vet',
-        cancelledAt: new Date()
-      })
-    } catch (error) {
-      console.error('Error cancelling appointment:', error)
-      alert('Failed to cancel appointment')
-    }
+  const cancelAppointment = async (id) => {
+    if (!confirm('Cancel appointment?')) return
+    await updateDoc(doc(db, 'appointments', id), { status: 'cancelled', cancelledBy: 'vet', cancelledAt: new Date() })
   }
 
-  const completeAppointment = async (appointmentId: string) => {
-    if (!confirm('Mark this appointment as completed?')) return
-
-    try {
-      await updateDoc(doc(db, 'appointments', appointmentId), {
-        status: 'completed',
-        completedAt: new Date()
-      })
-    } catch (error) {
-      console.error('Error completing appointment:', error)
-      alert('Failed to complete appointment')
-    }
+  const completeAppointment = async (id) => {
+    if (!confirm('Mark completed?')) return
+    await updateDoc(doc(db, 'appointments', id), { status: 'completed', completedAt: new Date() })
   }
 
-  const joinAppointment = (appointment: Appointment) => {
-    if (appointment.roomUrl) {
-      router.push(`/consultation?room=${encodeURIComponent(appointment.roomUrl)}`)
-    }
+  const joinAppointment = (apt) => {
+    if (apt.roomUrl) router.push(`/consultation?room=${encodeURIComponent(apt.roomUrl)}`)
   }
 
-  const canJoin = (appointment: Appointment) => {
-    const now = new Date()
-    const appointmentTime = new Date(appointment.scheduledDate)
-    const timeDiff = appointmentTime.getTime() - now.getTime()
-    const minutesDiff = Math.floor(timeDiff / 60000)
-    
-    return minutesDiff <= 10 && minutesDiff >= -60 && appointment.status === 'confirmed'
+  const canJoin = (apt) => {
+    const now = new Date(); const aptTime = new Date(apt.scheduledDate)
+    const diff = Math.floor((aptTime - now) / 60000)
+    return diff <= 10 && diff >= -60 && apt.status === 'confirmed'
   }
 
-  const getStatusColor = (status: string) => {
+  // --- RENDER HELPERS ---
+  const getStatusStyle = (status) => {
     switch (status) {
-      case 'confirmed': return 'bg-green-500 text-white'
-      case 'pending': return 'bg-yellow-500 text-white'
-      case 'completed': return 'bg-blue-500 text-white'
-      case 'cancelled': return 'bg-red-500 text-white'
-      default: return 'bg-gray-500 text-white'
+      case 'confirmed': return 'text-green-500 border-green-900/50 bg-green-950/20'
+      case 'pending': return 'text-amber-500 border-amber-900/50 bg-amber-950/20'
+      case 'completed': return 'text-blue-500 border-blue-900/50 bg-blue-950/20'
+      case 'cancelled': return 'text-red-500 border-red-900/50 bg-red-950/20'
+      default: return 'text-stone-500 border-stone-800 bg-stone-900'
     }
   }
 
   const displayedAppointments = filter === 'pending' ? pendingAppointments : myAppointments
 
-  if (loading || !storeUser) {
-    return (
-      <>
-        <Navbar />
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-        </div>
-      </>
-    )
-  }
+  if (loading || !storeUser) return (
+    <div className="min-h-screen bg-stone-950 flex items-center justify-center">
+       <div className="w-16 h-16 border-t-2 border-amber-600 rounded-full animate-spin" />
+    </div>
+  )
 
   return (
-    <>
+    <div className="min-h-screen bg-stone-950 text-stone-200 font-sans selection:bg-amber-600/30">
       <Navbar />
-      <div className="min-h-screen bg-slate-950 p-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">Veterinarian Dashboard</h1>
-            <p className="text-slate-400">Manage your appointments and consultations</p>
-          </div>
+      
+      {/* Background Texture */}
+      <div className="fixed inset-0 bg-[linear-gradient(to_right,#292524_1px,transparent_1px),linear-gradient(to_bottom,#292524_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-[0.05] pointer-events-none" />
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <Card className="bg-slate-800/50 border-slate-700 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-slate-400 text-sm mb-1">New Requests</p>
-                  <p className="text-3xl font-bold text-white">{pendingAppointments.length}</p>
-                </div>
-                <AlertCircle className="h-8 w-8 text-yellow-500" />
+      <div className="relative z-10 max-w-7xl mx-auto px-6 pt-32 pb-12">
+        
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-end mb-10 border-b border-stone-800 pb-6">
+           <div>
+              <div className="flex items-center gap-3 mb-2">
+                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                 <span className="font-mono text-xs text-green-500 tracking-widest uppercase">UPLINK_ESTABLISHED</span>
               </div>
-            </Card>
+              <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight">
+                VETERINARY <span className="text-stone-700">CONSOLE</span>
+              </h1>
+           </div>
+           <div className="text-right hidden md:block">
+              <div className="text-stone-500 text-xs font-mono mb-1">LOGGED_IN_AS</div>
+              <div className="text-white font-bold">{authUser.displayName || 'DR. UNKNOWN'}</div>
+           </div>
+        </div>
 
-            <Card className="bg-slate-800/50 border-slate-700 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-slate-400 text-sm mb-1">My Appointments</p>
-                  <p className="text-3xl font-bold text-white">{myAppointments.length}</p>
-                </div>
-                <CheckCircle2 className="h-8 w-8 text-green-500" />
-              </div>
-            </Card>
+        {/* Stats Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+          <StatCard 
+            label="INCOMING_REQUESTS" 
+            value={pendingAppointments.length} 
+            icon={Inbox} 
+            colorClass="text-amber-600 group-hover:text-amber-500" 
+          />
+          <StatCard 
+            label="MY_CASELOAD" 
+            value={myAppointments.length} 
+            icon={CheckCircle2} 
+            colorClass="text-green-600 group-hover:text-green-500" 
+          />
+          <StatCard 
+            label="SCHEDULED_TODAY" 
+            value={myAppointments.filter(a => new Date(a.scheduledDate).toDateString() === new Date().toDateString() && a.status === 'confirmed').length} 
+            icon={Calendar} 
+            colorClass="text-blue-600 group-hover:text-blue-500" 
+          />
+        </div>
 
-            <Card className="bg-slate-800/50 border-slate-700 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-slate-400 text-sm mb-1">Upcoming Today</p>
-                  <p className="text-3xl font-bold text-white">
-                    {myAppointments.filter(a => {
-                      const today = new Date().toDateString()
-                      return a.scheduledDate.toDateString() === today && a.status === 'confirmed'
-                    }).length}
-                  </p>
-                </div>
-                <Calendar className="h-8 w-8 text-blue-500" />
-              </div>
-            </Card>
-          </div>
+        {/* Filter Tabs */}
+        <div className="flex border-b border-stone-800 mb-8">
+          <FilterButton 
+             active={filter === 'pending'} 
+             label="OPEN_REQUESTS" 
+             count={pendingAppointments.length} 
+             onClick={() => setFilter('pending')} 
+          />
+          <FilterButton 
+             active={filter === 'my-appointments'} 
+             label="MY_SCHEDULE" 
+             count={myAppointments.length} 
+             onClick={() => setFilter('my-appointments')} 
+          />
+        </div>
 
-          {/* Filter Tabs */}
-          <div className="flex gap-2 mb-6">
-            <Button
-              onClick={() => setFilter('pending')}
-              variant={filter === 'pending' ? 'default' : 'outline'}
-              className={filter === 'pending' 
-                ? 'bg-blue-600 hover:bg-blue-700 text-black' 
-                : 'border-slate-700 text-black hover:bg-slate-800'}
-            >
-              New Requests
-              {pendingAppointments.length > 0 && (
-                <Badge className="ml-2 bg-red-500 text-white">
-                  {pendingAppointments.length}
-                </Badge>
-              )}
-            </Button>
-            <Button
-              onClick={() => setFilter('my-appointments')}
-              variant={filter === 'my-appointments' ? 'default' : 'outline'}
-              className={filter === 'my-appointments' 
-                ? 'bg-blue-600 hover:bg-blue-700 text-black' 
-                : 'border-slate-700 text-balck hover:bg-slate-800'}
-            >
-              My Appointments
-              <Badge className="ml-2 bg-slate-700 text-white">
-                {myAppointments.length}
-              </Badge>
-            </Button>
-          </div>
-
-          {/* Appointments Grid */}
-          <div className="grid gap-4">
-            {displayedAppointments.length === 0 ? (
-              <Card className="bg-slate-800/50 border-slate-700 p-12 text-center">
-                <Calendar className="h-16 w-16 text-slate-600 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-white mb-2">
-                  {filter === 'pending' ? 'No New Requests' : 'No Appointments'}
-                </h3>
-                <p className="text-slate-400">
-                  {filter === 'pending' 
-                    ? 'No new appointment requests at the moment' 
-                    : 'You have no scheduled appointments'}
-                </p>
-              </Card>
-            ) : (
-              displayedAppointments.map((appointment) => (
-                <motion.div
-                  key={appointment.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <Card className="bg-slate-800/50 border-slate-700 p-6">
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <Badge className={getStatusColor(appointment.status)}>
-                            {appointment.status}
-                          </Badge>
-                          {appointment.cattleName && (
-                            <Badge variant="outline" className="border-slate-600 text-white">
-                              Cattle: {appointment.cattleName}
-                            </Badge>
-                          )}
-                        </div>
-                        
-                        <h3 className="text-xl font-bold text-white mb-2">{appointment.reason}</h3>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-3">
-                          <div className="flex items-center gap-2 text-slate-300">
-                            <User className="h-4 w-4 text-slate-500" />
-                            <span>Farmer: <strong className="text-white">{appointment.farmerName}</strong></span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 text-slate-300">
-                            <Calendar className="h-4 w-4 text-slate-500" />
-                            <span>
-                              {appointment.scheduledDate.toLocaleDateString('en-IN', {
-                                weekday: 'short',
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric'
-                              })}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 text-slate-300">
-                            <Clock className="h-4 w-4 text-slate-500" />
-                            <span>{appointment.scheduledTime} ({appointment.duration} min)</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        {filter === 'pending' && (
-                          <Button 
-                            onClick={() => acceptAppointment(appointment.id)}
-                            className="bg-green-600 hover:bg-green-700 text-white"
-                          >
-                            <CheckCircle2 className="mr-2 h-4 w-4" />
-                            Accept & Assign to Me
-                          </Button>
-                        )}
-                        
-                        {filter === 'my-appointments' && canJoin(appointment) && (
-                          <>
-                            <Button 
-                              onClick={() => joinAppointment(appointment)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                              <Video className="mr-2 h-4 w-4" />
-                              Join Call
-                            </Button>
-                            <Button 
-                              onClick={() => completeAppointment(appointment.id)}
-                              variant="outline"
-                              className="border-green-500 text-green-400 hover:bg-green-500/10"
-                            >
-                              <CheckCircle2 className="mr-2 h-4 w-4" />
-                              Mark Complete
-                            </Button>
-                          </>
-                        )}
-
-                        {filter === 'my-appointments' && !canJoin(appointment) && appointment.status === 'confirmed' && (
-                          <Badge variant="secondary" className="text-xs bg-slate-700 text-white">
-                            <Clock className="mr-1 h-3 w-3" />
-                            Join opens 10 min before
-                          </Badge>
-                        )}
-
-                        {filter === 'my-appointments' && appointment.status === 'confirmed' && (
-                          <Button 
-                            onClick={() => cancelAppointment(appointment.id)}
-                            variant="outline"
-                            size="sm"
-                            className="border-red-500 text-red-400 hover:bg-red-500/10"
-                          >
-                            <X className="mr-2 h-4 w-4" />
-                            Cancel
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
+        {/* Appointments List */}
+        <div className="space-y-4">
+          <AnimatePresence mode="wait">
+             {displayedAppointments.length === 0 ? (
+                <motion.div initial={{opacity:0}} animate={{opacity:1}} className="py-20 text-center border border-dashed border-stone-800 bg-stone-900/20 rounded-xl">
+                   <div className="w-16 h-16 bg-stone-900 border border-stone-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Inbox className="w-8 h-8 text-stone-600" />
+                   </div>
+                   <h3 className="text-lg font-bold text-white mb-1">NO DATA FOUND</h3>
+                   <p className="text-stone-500 font-mono text-xs">QUEUE IS CURRENTLY EMPTY</p>
                 </motion.div>
-              ))
-            )}
-          </div>
+             ) : (
+                displayedAppointments.map((apt, i) => (
+                  <motion.div
+                    key={apt.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                  >
+                    <div className="bg-stone-900 border border-stone-800 hover:border-stone-600 transition-all p-6 relative group overflow-hidden rounded-lg">
+                       <div className="flex flex-col md:flex-row gap-6 relative z-10">
+                          
+                          {/* Info Column */}
+                          <div className="flex-1">
+                             <div className="flex items-center gap-3 mb-4">
+                                <span className={`px-2 py-0.5 text-[10px] font-mono uppercase border rounded ${getStatusStyle(apt.status)}`}>
+                                   {apt.status}
+                                </span>
+                                {apt.cattleName && (
+                                   <span className="px-2 py-0.5 text-[10px] font-mono text-stone-400 border border-stone-700 rounded bg-stone-950">
+                                      ID: {apt.cattleName}
+                                   </span>
+                                )}
+                             </div>
+
+                             <h3 className="text-xl font-bold text-white mb-2">{apt.reason}</h3>
+                             
+                             <div className="grid grid-cols-2 gap-4 text-sm mt-4 max-w-md">
+                                <div className="flex items-center gap-2 text-stone-400">
+                                   <User className="w-4 h-4 text-stone-600" />
+                                   <span className="font-mono text-xs">{apt.farmerName}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-stone-400">
+                                   <Calendar className="w-4 h-4 text-stone-600" />
+                                   <span className="font-mono text-xs">{new Date(apt.scheduledDate).toLocaleDateString()}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-stone-400">
+                                   <Clock className="w-4 h-4 text-stone-600" />
+                                   <span className="font-mono text-xs">{apt.scheduledTime} ({apt.duration}m)</span>
+                                </div>
+                             </div>
+                          </div>
+
+                          {/* Action Column */}
+                          <div className="flex flex-col justify-center gap-3 md:w-64 border-t md:border-t-0 md:border-l border-stone-800 pt-4 md:pt-0 md:pl-6">
+                             {filter === 'pending' && (
+                                <button 
+                                   onClick={() => acceptAppointment(apt.id)}
+                                   className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs font-mono uppercase tracking-wider transition-colors flex items-center justify-center gap-2"
+                                >
+                                   <CheckCircle2 className="w-4 h-4" /> ACCEPT_CASE
+                                </button>
+                             )}
+
+                             {filter === 'my-appointments' && (
+                                <>
+                                   {canJoin(apt) ? (
+                                      <button 
+                                         onClick={() => joinAppointment(apt)}
+                                         className="w-full py-3 bg-green-600 hover:bg-green-500 text-stone-950 font-bold text-xs font-mono uppercase tracking-wider transition-colors flex items-center justify-center gap-2 animate-pulse"
+                                      >
+                                         <Video className="w-4 h-4" /> JOIN_UPLINK
+                                      </button>
+                                   ) : apt.status === 'confirmed' ? (
+                                      <div className="w-full py-3 bg-stone-800 border border-stone-700 text-stone-500 font-mono text-[10px] uppercase text-center flex items-center justify-center gap-2">
+                                         <Clock className="w-3 h-3" /> AWAITING_WINDOW
+                                      </div>
+                                   ) : null}
+
+                                   {apt.status === 'confirmed' && (
+                                      <div className="flex gap-2">
+                                         <button 
+                                            onClick={() => completeAppointment(apt.id)}
+                                            className="flex-1 py-2 bg-stone-950 border border-stone-800 hover:border-green-900 text-green-600 font-mono text-[10px] uppercase transition-colors"
+                                         >
+                                            RESOLVE
+                                         </button>
+                                         <button 
+                                            onClick={() => cancelAppointment(apt.id)}
+                                            className="flex-1 py-2 bg-stone-950 border border-stone-800 hover:border-red-900 text-red-600 font-mono text-[10px] uppercase transition-colors"
+                                         >
+                                            ABORT
+                                         </button>
+                                      </div>
+                                   )}
+                                </>
+                             )}
+                          </div>
+
+                       </div>
+                    </div>
+                  </motion.div>
+                ))
+             )}
+          </AnimatePresence>
         </div>
       </div>
-    </>
+    </div>
   )
 }

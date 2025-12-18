@@ -1,221 +1,275 @@
 'use client'
 
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import React, { useRef } from 'react'
+import { motion, useMotionValue, useSpring } from 'framer-motion'
 import { 
   Shield, Heart, Users, Target, Sparkles, Video, 
-  Brain, Camera, Activity, Phone, Mail, MapPin
+  Brain, Camera, Activity, Phone, Mail, MapPin, 
+  Scan, ArrowRight, Signal
 } from 'lucide-react'
-import { motion } from 'framer-motion'
 import Link from 'next/link'
-import PublicNavbar from '@/components/Navbar'
+import Navbar from '@/components/Navbar'
+
+// --- REUSED: MAGNETIC BUTTON ---
+const MagneticButton = ({ children, className = "", onClick }) => {
+  const ref = useRef(null)
+  const x = useMotionValue(0)
+  const y = useMotionValue(0)
+  const springConfig = { damping: 15, stiffness: 150, mass: 0.1 }
+  const springX = useSpring(x, springConfig)
+  const springY = useSpring(y, springConfig)
+
+  const handleMouseMove = (e) => {
+    const { clientX, clientY } = e
+    const { left, top, width, height } = ref.current.getBoundingClientRect()
+    x.set((clientX - (left + width / 2)) * 0.3)
+    y.set((clientY - (top + height / 2)) * 0.3)
+  }
+
+  const handleMouseLeave = () => { x.set(0); y.set(0) }
+
+  return (
+    <motion.button
+      ref={ref}
+      onClick={onClick}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{ x: springX, y: springY }}
+      className={`relative ${className}`}
+    >
+      {children}
+    </motion.button>
+  )
+}
+
+// --- REUSED: TECH CARD ---
+const TechCard = ({ children, className = "", title, icon: Icon }) => (
+  <div className={`relative bg-stone-900 border border-stone-800 p-8 overflow-hidden group ${className}`}>
+    {/* Corner Accents */}
+    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-600/50" />
+    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-600/50" />
+    <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-amber-600/50" />
+    <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-amber-600/50" />
+    
+    {/* Scan Line Effect on Hover */}
+    <div className="absolute inset-0 bg-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+    <motion.div 
+      initial={{ top: "-100%" }}
+      whileHover={{ top: "100%" }}
+      transition={{ duration: 1.5, ease: "linear", repeat: Infinity }}
+      className="absolute left-0 right-0 h-[1px] bg-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.5)] pointer-events-none"
+    />
+
+    {(title || Icon) && (
+      <div className="flex items-center gap-3 mb-6 border-b border-stone-800 pb-4">
+        {Icon && (
+          <div className="p-2 bg-stone-950 border border-stone-800 rounded">
+            <Icon className="w-5 h-5 text-amber-600" />
+          </div>
+        )}
+        {title && <h3 className="text-xl font-bold text-stone-200 tracking-tight">{title}</h3>}
+      </div>
+    )}
+    {children}
+  </div>
+)
 
 export default function AboutPage() {
   const features = [
     {
       icon: Camera,
-      title: 'Live Monitoring',
-      description: 'Watch your cattle 24/7 with AI-powered camera systems that detect behavioral changes and health issues.',
-      color: 'from-blue-500 to-cyan-500'
+      title: 'VISUAL_MONITORING',
+      description: '24/7 AI-powered optical surveillance detecting behavioral anomalies and physical distress markers.',
     },
     {
       icon: Activity,
-      title: 'IoT Health Sensors',
-      description: 'Smart collars track vital signs including heart rate, temperature, and activity levels in real-time.',
-      color: 'from-purple-500 to-pink-500'
+      title: 'IOT_TELEMETRY',
+      description: 'Biometric sensors tracking heart rate, rumination patterns, and core temperature in real-time.',
     },
     {
       icon: Brain,
-      title: 'AI Diagnostics',
-      description: 'Machine learning models detect diseases early, enabling timely intervention and better outcomes.',
-      color: 'from-orange-500 to-red-500'
+      title: 'NEURAL_DIAGNOSTICS',
+      description: 'Predictive machine learning models identifying pathology vectors before clinical symptoms manifest.',
     },
     {
       icon: Video,
-      title: 'Vet Consultations',
-      description: 'Connect with certified volunteer veterinarians via video call for immediate expert guidance.',
-      color: 'from-green-500 to-emerald-500'
+      title: 'VET_UPLINK',
+      description: 'Instantaneous, low-latency video consultations with a decentralized network of volunteer specialists.',
     }
   ]
 
   return (
     <>
-      <PublicNavbar />
-      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+      <Navbar />
+      <div className="min-h-screen bg-stone-950 text-stone-200 font-sans selection:bg-amber-600 selection:text-white pb-20">
+        
+        {/* Background Texture */}
+        <div className="fixed inset-0 bg-[linear-gradient(to_right,#1c1917_1px,transparent_1px),linear-gradient(to_bottom,#1c1917_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20 pointer-events-none z-0" />
+
         {/* Hero Section */}
-        <section className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10" />
-          <div className="relative max-w-7xl mx-auto px-6 py-20">
+        <section className="relative z-10 pt-40 pb-20 px-6 border-b border-stone-900">
+          <div className="max-w-6xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-center"
+              className="max-w-4xl"
             >
-              <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 mb-6">
-                Non-Profit Initiative
-              </Badge>
-              <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
-                About <span className="text-blue-500">GauSeva</span>
+              <div className="flex items-center gap-3 mb-6">
+                 <div className="w-2 h-2 bg-amber-600 rounded-full animate-pulse" />
+                 <span className="font-mono text-xs text-amber-600 tracking-widest uppercase">Initiative_Overview</span>
+              </div>
+              
+              <h1 className="text-6xl md:text-8xl font-black text-white mb-8 tracking-tighter leading-[0.9]">
+                SYSTEM <br />
+                <span className="text-stone-800 text-stroke-white">MANIFESTO.</span>
               </h1>
-              <p className="text-xl text-slate-300 max-w-3xl mx-auto leading-relaxed">
-                A community-driven platform empowering Indian dairy farmers with cutting-edge technology 
-                to monitor cattle health and access free veterinary care.
+              
+              <p className="text-xl md:text-2xl text-stone-400 leading-relaxed border-l-2 border-amber-600 pl-6 max-w-2xl">
+                Democratizing advanced biotelemetry. We engineer open-source monitoring infrastructure for the Indian dairy ecosystem.
               </p>
             </motion.div>
           </div>
         </section>
 
         {/* Mission & Vision */}
-        <section className="max-w-7xl mx-auto px-6 py-16">
-          <div className="grid md:grid-cols-2 gap-8">
-            <Card className="bg-slate-800/50 border-slate-700 p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-blue-500/20 rounded-lg">
-                  <Target className="h-6 w-6 text-blue-400" />
-                </div>
-                <h2 className="text-2xl font-bold text-white">Our Mission</h2>
-              </div>
-              <p className="text-slate-300 leading-relaxed mb-4">
-                To democratize access to advanced cattle health monitoring and veterinary care for every 
-                farmer in India, regardless of their location or economic status.
+        <section className="relative z-10 py-20 px-6">
+          <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12">
+            
+            {/* Mission Card */}
+            <TechCard title="MISSION_PROTOCOL" icon={Target}>
+              <p className="text-stone-400 leading-relaxed mb-6 font-mono text-sm">
+                To deploy enterprise-grade health monitoring and veterinary diagnostics to every pastoral node in India, independent of economic constraints.
               </p>
-              <p className="text-slate-300 leading-relaxed">
-                We believe that technology should serve those who need it most. By combining IoT sensors, 
-                AI diagnostics, and volunteer veterinarians, we're building a sustainable ecosystem where 
-                cattle health is no longer a luxury but a fundamental right.
+              <p className="text-stone-500 leading-relaxed text-sm">
+                We reject the commodification of animal welfare. By fusing low-cost IoT hardware with high-efficiency AI, we construct a sustainable grid where cattle health is a fundamental constant.
               </p>
-            </Card>
+            </TechCard>
 
-            <Card className="bg-slate-800/50 border-slate-700 p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-purple-500/20 rounded-lg">
-                  <Sparkles className="h-6 w-6 text-purple-400" />
-                </div>
-                <h2 className="text-2xl font-bold text-white">Our Vision</h2>
-              </div>
-              <p className="text-slate-300 leading-relaxed mb-4">
-                A future where no cattle suffers from preventable diseases, and every farmer has the tools 
-                to ensure their herd's wellbeing through technology and community support.
+            {/* Vision Card */}
+            <TechCard title="VISION_PARAMETER" icon={Sparkles}>
+              <p className="text-stone-400 leading-relaxed mb-6 font-mono text-sm">
+                A connected ecosystem where preventative care replaces reactive treatment. Zero preventable loss through early algorithmic detection.
               </p>
-              <p className="text-slate-300 leading-relaxed">
-                We envision a network of empowered farmers connected to expert veterinarians, using 
-                AI-powered early detection systems to prevent diseases before they spread, ultimately 
-                improving both animal welfare and farmer livelihoods across India.
+              <p className="text-stone-500 leading-relaxed text-sm">
+                We envision a decentralized mesh of empowered farmers and volunteer specialists, united by data-driven insights to elevate livestock welfare standards nationwide.
               </p>
-            </Card>
+            </TechCard>
+            
           </div>
         </section>
 
-        {/* How It Works */}
-        <section className="max-w-7xl mx-auto px-6 py-16">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-white mb-4">How GauSeva Works</h2>
-            <p className="text-slate-400 text-lg">Four simple steps to better cattle health</p>
-          </div>
+        {/* System Architecture (How It Works) */}
+        <section className="relative z-10 py-20 px-6 bg-stone-900/30 border-y border-stone-900">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-end justify-between mb-16">
+               <div>
+                  <h2 className="text-4xl font-black text-white mb-2">SYSTEM ARCHITECTURE</h2>
+                  <p className="text-stone-500 font-mono text-sm">OPERATIONAL WORKFLOW</p>
+               </div>
+               <Activity className="w-8 h-8 text-stone-800" />
+            </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <Card className="bg-slate-800/50 border-slate-700 p-6 h-full">
-                  <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4`}>
-                    <feature.icon className="h-6 w-6 text-white" />
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {features.map((feature, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                >
+                  <div className="bg-stone-950 border border-stone-800 p-6 h-full hover:border-amber-600/50 transition-colors group">
+                    <div className="w-12 h-12 bg-stone-900 border border-stone-800 flex items-center justify-center mb-6 group-hover:bg-amber-600 group-hover:text-black transition-colors">
+                      <feature.icon className="w-6 h-6" />
+                    </div>
+                    <h3 className="font-mono text-sm font-bold text-amber-600 mb-3 tracking-wider">{feature.title}</h3>
+                    <p className="text-stone-500 text-xs leading-relaxed font-mono">{feature.description}</p>
                   </div>
-                  <h3 className="text-xl font-bold text-white mb-3">{feature.title}</h3>
-                  <p className="text-slate-400 text-sm leading-relaxed">{feature.description}</p>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* Why Free? */}
-        <section className="max-w-5xl mx-auto px-6 py-16">
-          <Card className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-500/30 p-8">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-blue-500/20 rounded-lg flex-shrink-0">
-                <Heart className="h-8 w-8 text-blue-400" />
-              </div>
-              <div>
-                <h2 className="text-3xl font-bold text-white mb-4">Why 100% Free?</h2>
-                <p className="text-slate-300 leading-relaxed mb-4">
-                  GauSeva is a <strong className="text-white">non-profit initiative</strong> built on the 
-                  principle that every farmer deserves access to quality veterinary care. We don't charge 
-                  farmers because we believe technology should empower, not create barriers.
-                </p>
-                <p className="text-slate-300 leading-relaxed mb-4">
-                  Our volunteer veterinarians donate their time and expertise to help the community. 
-                  Our platform is funded through grants, donations, and partnerships with agricultural 
-                  organizations who share our vision.
-                </p>
-                <div className="flex flex-wrap gap-2 mt-6">
-                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                    <Shield className="h-3 w-3 mr-1" />
-                    100% Free for Farmers
-                  </Badge>
-                  <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                    <Users className="h-3 w-3 mr-1" />
-                    Volunteer-Driven
-                  </Badge>
-                </div>
-              </div>
+                </motion.div>
+              ))}
             </div>
-          </Card>
+          </div>
         </section>
 
-        {/* Contact Section */}
-        <section className="max-w-5xl mx-auto px-6 py-16">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-white mb-4">Get in Touch</h2>
-            <p className="text-slate-400 text-lg">We'd love to hear from you</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6 mb-8">
-            <Card className="bg-slate-800/50 border-slate-700 p-6 text-center">
-              <Mail className="h-8 w-8 text-blue-400 mx-auto mb-3" />
-              <p className="text-white font-semibold mb-1">Email</p>
-              <p className="text-slate-400 text-sm">Contact via platform</p>
-            </Card>
-
-            <Card className="bg-slate-800/50 border-slate-700 p-6 text-center">
-              <Phone className="h-8 w-8 text-green-400 mx-auto mb-3" />
-              <p className="text-white font-semibold mb-1">Support</p>
-              <p className="text-slate-400 text-sm">In-app messaging</p>
-            </Card>
-
-            <Card className="bg-slate-800/50 border-slate-700 p-6 text-center">
-              <MapPin className="h-8 w-8 text-red-400 mx-auto mb-3" />
-              <p className="text-white font-semibold mb-1">Serving</p>
-              <p className="text-slate-400 text-sm">Across India</p>
-            </Card>
-          </div>
-
-          <Card className="bg-slate-800/50 border-slate-700 p-8 text-center">
-            <h3 className="text-2xl font-bold text-white mb-4">Join Our Mission</h3>
-            <p className="text-slate-300 mb-6">
-              Whether you're a farmer, veterinarian, or supporter, there's a place for you in the GauSeva community.
-            </p>
-            <div className="flex flex-wrap gap-4 justify-center">
-              <Link href="/auth/signup">
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                  <Users className="mr-2 h-4 w-4" />
-                  Join as Farmer
-                </Button>
-              </Link>
-              <Link href="/auth/vet-signup">
-                <Button className="bg-green-600 hover:bg-green-700 text-white">
-                  <Heart className="mr-2 h-4 w-4" />
-                  Volunteer as Vet
-                </Button>
-              </Link>
+        {/* Non-Profit Philosophy */}
+        <section className="relative z-10 py-20 px-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="relative bg-stone-900 border border-stone-800 p-8 md:p-12 overflow-hidden">
+               {/* Background Noise */}
+               <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none" />
+               
+               <div className="relative z-10 flex flex-col md:flex-row gap-8 items-start">
+                  <div className="p-4 bg-amber-600/10 border border-amber-600/30 rounded-none">
+                     <Heart className="w-8 h-8 text-amber-600" />
+                  </div>
+                  <div>
+                     <h2 className="text-3xl font-black text-white mb-6">ZERO_COST_INITIATIVE</h2>
+                     <p className="text-stone-400 leading-relaxed mb-6">
+                        GauSeva operates on a strict <strong className="text-white">non-profit kernel</strong>. We engineer this platform because technological barriers should never compromise animal welfare.
+                     </p>
+                     <p className="text-stone-500 text-sm leading-relaxed mb-8 font-mono">
+                        // PLATFORM FUNDING: GRANTS && DONATIONS <br/>
+                        // VETERINARY NETWORK: 100% VOLUNTEER
+                     </p>
+                     
+                     <div className="flex gap-4">
+                        <div className="flex items-center gap-2 px-3 py-1 bg-green-900/20 border border-green-900/50 text-green-500 text-xs font-mono">
+                           <Shield className="w-3 h-3" /> FREE_FOR_FARMERS
+                        </div>
+                        <div className="flex items-center gap-2 px-3 py-1 bg-stone-800 border border-stone-700 text-stone-400 text-xs font-mono">
+                           <Users className="w-3 h-3" /> VOLUNTEER_DRIVEN
+                        </div>
+                     </div>
+                  </div>
+               </div>
             </div>
-          </Card>
+          </div>
         </section>
+
+        {/* Footer / Contact */}
+        <section className="relative z-10 py-20 px-6 border-t border-stone-900 bg-stone-950">
+          <div className="max-w-6xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-12 items-center">
+               <div>
+                  <h2 className="text-5xl font-black text-white mb-6">ESTABLISH <br/><span className="text-amber-600">CONNECTION.</span></h2>
+                  <p className="text-stone-400 mb-8 max-w-md">Whether you operate a farm node or wish to contribute veterinary expertise, the network requires your input.</p>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-8">
+                     <div className="p-4 bg-stone-900 border border-stone-800">
+                        <Mail className="w-5 h-5 text-amber-600 mb-2" />
+                        <div className="text-xs font-mono text-stone-500">DIGITAL_MAIL</div>
+                        <div className="text-white font-bold text-sm">contact@gauseva.org</div>
+                     </div>
+                     <div className="p-4 bg-stone-900 border border-stone-800">
+                        <MapPin className="w-5 h-5 text-amber-600 mb-2" />
+                        <div className="text-xs font-mono text-stone-500">OPERATIONAL_REGION</div>
+                        <div className="text-white font-bold text-sm">PAN_INDIA</div>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="space-y-4">
+                  <div className="bg-stone-900 p-8 border border-stone-800 relative group overflow-hidden">
+                     <div className="absolute inset-0 bg-amber-600/5 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                     <h3 className="text-xl font-bold text-white mb-2 relative z-10">JOIN_NETWORK // FARMER</h3>
+                     <p className="text-stone-500 text-xs font-mono mb-6 relative z-10">Initialize monitoring for your herd.</p>
+                     <MagneticButton onClick={() => window.location.href='/auth/signup'} className="w-full py-4 bg-amber-600 text-black font-bold font-mono text-sm hover:bg-amber-500 transition-colors">
+                        REGISTER_NODE <ArrowRight className="w-4 h-4 ml-2 inline" />
+                     </MagneticButton>
+                  </div>
+
+                  <div className="bg-stone-900 p-8 border border-stone-800 relative group overflow-hidden">
+                     <div className="absolute inset-0 bg-stone-800 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                     <h3 className="text-xl font-bold text-white mb-2 relative z-10">JOIN_NETWORK // SPECIALIST</h3>
+                     <p className="text-stone-500 text-xs font-mono mb-6 relative z-10">Volunteer veterinary expertise.</p>
+                     <MagneticButton onClick={() => window.location.href='/auth/vet-signup'} className="w-full py-4 bg-transparent border border-stone-700 text-stone-300 font-mono text-sm hover:text-white hover:border-white transition-colors">
+                        VOLUNTEER_ACCESS
+                     </MagneticButton>
+                  </div>
+               </div>
+            </div>
+          </div>
+        </section>
+
       </div>
     </>
   )

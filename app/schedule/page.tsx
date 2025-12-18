@@ -37,15 +37,15 @@ export default function SchedulePage() {
   const { user } = useAuth()
   const router = useRouter()
   const { cattle } = useCattleData()
+
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [showNewAppointment, setShowNewAppointment] = useState(false)
   const [loading, setLoading] = useState(true)
-  
-  // Get current date and time for defaults
+
   const now = new Date()
   const currentDate = now.toISOString().split('T')[0]
   const currentTime = now.toTimeString().slice(0, 5)
-  
+
   const [formData, setFormData] = useState({
     date: currentDate,
     time: currentTime,
@@ -60,28 +60,24 @@ export default function SchedulePage() {
       return
     }
 
-    const q = query(
-      collection(db, 'appointments'),
-      where('farmerId', '==', user.uid)
-    )
+    const q = query(collection(db, 'appointments'), where('farmerId', '==', user.uid))
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const appointmentData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        scheduledDate: doc.data().scheduledDate?.toDate() || new Date(),
-        createdAt: doc.data().createdAt?.toDate() || new Date()
-      } as Appointment))
-      
+      const appointmentData = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as any),
+        scheduledDate: d.data().scheduledDate?.toDate() || new Date(),
+        createdAt: d.data().createdAt?.toDate() || new Date()
+      })) as Appointment[]
+
       appointmentData.sort((a, b) => a.scheduledDate.getTime() - b.scheduledDate.getTime())
       setAppointments(appointmentData)
       setLoading(false)
     })
 
     return () => unsubscribe()
-  }, [user])
+  }, [user, router])
 
-  // Reset form with current time when opening modal
   const handleOpenModal = () => {
     const now = new Date()
     setFormData({
@@ -96,7 +92,7 @@ export default function SchedulePage() {
 
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!user || !formData.date || !formData.time || !formData.reason) {
       alert('Please fill in all required fields')
       return
@@ -104,7 +100,7 @@ export default function SchedulePage() {
 
     try {
       const scheduledDateTime = new Date(`${formData.date}T${formData.time}`)
-      
+
       if (scheduledDateTime <= new Date()) {
         alert('Please select a future date and time')
         return
@@ -115,7 +111,7 @@ export default function SchedulePage() {
         farmerName: user.displayName || 'Farmer',
         farmerEmail: user.email,
         cattleId: formData.cattleId || null,
-        cattleName: cattle.find(c => c.id === formData.cattleId)?.cattleId || null,
+        cattleName: cattle.find((c) => c.id === formData.cattleId)?.cattleId || null,
         scheduledDate: Timestamp.fromDate(scheduledDateTime),
         scheduledTime: formData.time,
         duration: parseInt(formData.duration),
@@ -157,29 +153,35 @@ export default function SchedulePage() {
 
   const canJoin = (appointment: Appointment) => {
     if (appointment.status !== 'confirmed' || !appointment.roomUrl) return false
-    
+
     const now = new Date()
     const appointmentTime = new Date(appointment.scheduledDate)
     const timeDiff = appointmentTime.getTime() - now.getTime()
     const minutesDiff = Math.floor(timeDiff / 60000)
-    
+
     return minutesDiff <= 10 && minutesDiff >= -60
   }
 
-  const getStatusColor = (status: string) => {
+  const statusPill = (status: Appointment['status']) => {
+    const base = 'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium'
     switch (status) {
-      case 'confirmed': return 'bg-green-500'
-      case 'pending': return 'bg-yellow-500'
-      case 'completed': return 'bg-blue-500'
-      case 'cancelled': return 'bg-red-500'
-      default: return 'bg-gray-500'
+      case 'confirmed':
+        return `${base} border-emerald-900/40 bg-emerald-950/30 text-emerald-300`
+      case 'pending':
+        return `${base} border-amber-900/40 bg-amber-950/30 text-amber-300`
+      case 'completed':
+        return `${base} border-sky-900/40 bg-sky-950/30 text-sky-300`
+      case 'cancelled':
+        return `${base} border-rose-900/40 bg-rose-950/30 text-rose-300`
+      default:
+        return `${base} border-stone-800 bg-stone-900/40 text-stone-300`
     }
   }
 
   const getStatusMessage = (appointment: Appointment) => {
-    if (appointment.status === 'pending') return 'Waiting for vet to accept'
+    if (appointment.status === 'pending') return 'Waiting for vet confirmation'
     if (appointment.status === 'confirmed' && canJoin(appointment)) return 'Ready to join'
-    if (appointment.status === 'confirmed') return 'Confirmed - join opens 10 min before'
+    if (appointment.status === 'confirmed') return 'Confirmed — join opens 10 min before'
     if (appointment.status === 'completed') return 'Completed'
     if (appointment.status === 'cancelled') return 'Cancelled'
     return ''
@@ -189,8 +191,8 @@ export default function SchedulePage() {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        <div className="min-h-screen bg-stone-950 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-full border-2 border-stone-800 border-t-amber-600 animate-spin" />
         </div>
       </>
     )
@@ -199,54 +201,74 @@ export default function SchedulePage() {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-slate-950 p-6">
-        <div className="max-w-4xl mx-auto">
+
+      <div className="min-h-screen bg-stone-950 text-stone-200">
+        {/* subtle grid */}
+        <div className="fixed inset-0 bg-[linear-gradient(to_right,#292524_1px,transparent_1px),linear-gradient(to_bottom,#292524_1px,transparent_1px)] bg-[size:6rem_6rem] opacity-[0.035] pointer-events-none" />
+
+        <div className="relative max-w-5xl mx-auto px-6 pt-32 pb-16">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">My Appointments</h1>
-              <p className="text-slate-400">Schedule consultations with veterinarians</p>
+              <h1 className="text-3xl font-semibold text-white tracking-tight">Appointments</h1>
+              <p className="text-stone-500 mt-1">Request and manage veterinary consultations.</p>
             </div>
-            <Button 
+
+            <Button
               onClick={handleOpenModal}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-amber-600 hover:bg-amber-500 text-stone-950 font-semibold"
             >
               <Plus className="mr-2 h-4 w-4" />
-              New Appointment
+              New appointment
             </Button>
           </div>
 
-          {/* Appointments List */}
+          {/* List */}
           <div className="space-y-4">
             {appointments.length === 0 ? (
-              <Card className="bg-slate-800/50 border-slate-700 p-12 text-center">
-                <Calendar className="h-16 w-16 text-slate-600 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-white mb-2">No Appointments</h3>
-                <p className="text-slate-400 mb-6">You haven't scheduled any consultations yet</p>
-                <Button onClick={handleOpenModal} className="bg-blue-600">
+              <Card className="bg-stone-900/40 border border-stone-800 rounded-xl p-10 text-center">
+                <div className="mx-auto mb-4 w-12 h-12 rounded-xl bg-stone-900 border border-stone-800 flex items-center justify-center">
+                  <Calendar className="h-6 w-6 text-stone-500" />
+                </div>
+                <h3 className="text-white font-semibold text-lg">No appointments yet</h3>
+                <p className="text-stone-500 mt-1 mb-6">Create one to consult a veterinarian.</p>
+                <Button onClick={handleOpenModal} className="bg-amber-600 hover:bg-amber-500 text-stone-950 font-semibold">
                   <Plus className="mr-2 h-4 w-4" />
-                  Schedule First Appointment
+                  Schedule first appointment
                 </Button>
               </Card>
             ) : (
               appointments.map((appointment) => (
-                <Card key={appointment.id} className="bg-slate-800/50 border-slate-700 p-6">
-                  <div className="flex items-start justify-between">
+                <Card
+                  key={appointment.id}
+                  className="bg-stone-900/40 border border-stone-800 rounded-xl p-6"
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <Badge className={`${getStatusColor(appointment.status)} text-white`}>
-                          {appointment.status}
-                        </Badge>
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <span className={statusPill(appointment.status)}>
+                          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+                          {appointment.status.toUpperCase()}
+                        </span>
+
                         {appointment.cattleName && (
-                          <Badge variant="outline">{appointment.cattleName}</Badge>
+                          <span className="inline-flex items-center rounded-full border border-stone-800 bg-stone-950/40 px-3 py-1 text-xs text-stone-300">
+                            {appointment.cattleName}
+                          </span>
                         )}
+
+                        <span className="text-xs text-stone-500">
+                          {getStatusMessage(appointment)}
+                        </span>
                       </div>
-                      
-                      <h3 className="text-xl font-bold text-white mb-2">{appointment.reason}</h3>
-                      
-                      <div className="grid grid-cols-2 gap-4 text-sm mb-3">
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <Calendar className="h-4 w-4" />
+
+                      <h3 className="text-xl font-semibold text-white mb-3">
+                        {appointment.reason}
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div className="flex items-center gap-2 text-stone-400">
+                          <Calendar className="h-4 w-4 text-stone-600" />
                           <span>
                             {appointment.scheduledDate.toLocaleDateString('en-IN', {
                               weekday: 'short',
@@ -256,52 +278,46 @@ export default function SchedulePage() {
                             })}
                           </span>
                         </div>
-                        
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <Clock className="h-4 w-4" />
-                          <span>{appointment.scheduledTime} ({appointment.duration} min)</span>
+
+                        <div className="flex items-center gap-2 text-stone-400">
+                          <Clock className="h-4 w-4 text-stone-600" />
+                          <span>
+                            {appointment.scheduledTime} • {appointment.duration} min
+                          </span>
                         </div>
                       </div>
 
                       {appointment.vetName && (
-                        <p className="text-slate-400 text-sm">
-                          Doctor: <span className="text-white font-semibold">{appointment.vetName}</span>
+                        <p className="text-sm text-stone-400 mt-3">
+                          Veterinarian: <span className="text-stone-200 font-medium">{appointment.vetName}</span>
                         </p>
                       )}
-
-                      <div className="flex items-center gap-2 mt-2">
-                        {appointment.status === 'pending' && (
-                          <Badge variant="secondary" className="text-xs">
-                            <AlertCircle className="h-3 w-3 mr-1" />
-                            {getStatusMessage(appointment)}
-                          </Badge>
-                        )}
-                        {appointment.status === 'confirmed' && (
-                          <Badge variant="secondary" className="text-xs">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            {getStatusMessage(appointment)}
-                          </Badge>
-                        )}
-                      </div>
                     </div>
 
-                    <div className="flex flex-col gap-2 ml-4">
-                      {canJoin(appointment) && (
-                        <Button 
+                    <div className="flex flex-col sm:flex-row lg:flex-col gap-2 lg:min-w-[180px]">
+                      {canJoin(appointment) ? (
+                        <Button
                           onClick={() => handleJoinCall(appointment)}
-                          className="bg-green-600 hover:bg-green-700"
+                          className="bg-emerald-600 hover:bg-emerald-500 text-stone-950 font-semibold"
                         >
                           <Video className="mr-2 h-4 w-4" />
-                          Join Call
+                          Join call
+                        </Button>
+                      ) : (
+                        <Button
+                          disabled
+                          className="bg-stone-800 text-stone-500 cursor-not-allowed"
+                        >
+                          <Video className="mr-2 h-4 w-4" />
+                          Join call
                         </Button>
                       )}
-                      
+
                       {appointment.status === 'pending' && (
-                        <Button 
+                        <Button
                           onClick={() => handleCancelAppointment(appointment.id)}
                           variant="outline"
-                          size="sm"
-                          className="border-red-500 text-red-500 hover:bg-red-500/10"
+                          className="border-rose-900/50 text-rose-300 hover:bg-rose-950/20 hover:text-rose-200"
                         >
                           <X className="mr-2 h-4 w-4" />
                           Cancel
@@ -316,79 +332,95 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* New Appointment Modal */}
+      {/* Modal */}
       <AnimatePresence>
         {showNewAppointment && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowNewAppointment(false)}
+            />
+
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.18 }}
+              className="relative w-full max-w-md"
             >
-              <Card className="bg-slate-800 border-slate-700 p-6 w-full max-w-md">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-white">Schedule Appointment</h2>
-                  <Button 
-                    onClick={() => setShowNewAppointment(false)} 
-                    variant="ghost" 
+              <Card className="bg-stone-900 border border-stone-800 rounded-xl p-6 shadow-2xl">
+                <div className="flex items-start justify-between mb-5">
+                  <div>
+                    <h2 className="text-xl font-semibold text-white">New appointment</h2>
+                    <p className="text-sm text-stone-500 mt-1">Request a slot from a veterinarian.</p>
+                  </div>
+                  <Button
+                    onClick={() => setShowNewAppointment(false)}
+                    variant="ghost"
                     size="icon"
+                    className="text-stone-400 hover:text-white hover:bg-stone-800"
                   >
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
 
                 <form onSubmit={handleCreateAppointment} className="space-y-4">
-                  {/* Cattle Selection */}
+                  {/* Cattle */}
                   <div>
-                    <Label htmlFor="cattle" className="text-slate-300">Cattle (Optional)</Label>
+                    <Label htmlFor="cattle" className="text-stone-300">Cattle (optional)</Label>
                     <select
                       id="cattle"
                       value={formData.cattleId}
-                      onChange={(e) => setFormData({...formData, cattleId: e.target.value})}
-                      className="w-full bg-slate-900 border-slate-700 text-white rounded-md p-2 mt-1"
+                      onChange={(e) => setFormData({ ...formData, cattleId: e.target.value })}
+                      className="mt-1 w-full rounded-lg bg-stone-950 border border-stone-800 px-3 py-2 text-sm text-stone-200 focus:outline-none focus:border-amber-600/50"
                     >
-                      <option value="">General Consultation</option>
+                      <option value="">General consultation</option>
                       {cattle.map((c) => (
-                        <option key={c.id} value={c.id}>{c.cattleId} - {c.breed}</option>
+                        <option key={c.id} value={c.id}>
+                          {c.cattleId} — {c.breed}
+                        </option>
                       ))}
                     </select>
                   </div>
 
                   {/* Date */}
                   <div>
-                    <Label htmlFor="date" className="text-slate-300">Date *</Label>
+                    <Label htmlFor="date" className="text-stone-300">Date *</Label>
                     <Input
                       id="date"
                       type="date"
                       value={formData.date}
-                      onChange={(e) => setFormData({...formData, date: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                       min={new Date().toISOString().split('T')[0]}
-                      className="bg-slate-900 border-slate-700 text-white mt-1"
+                      className="mt-1 bg-stone-950 border-stone-800 text-white focus-visible:ring-amber-600/20 focus-visible:border-amber-600/50"
                       required
                     />
                   </div>
 
                   {/* Time */}
                   <div>
-                    <Label htmlFor="time" className="text-slate-300">Time *</Label>
+                    <Label htmlFor="time" className="text-stone-300">Time *</Label>
                     <Input
                       id="time"
                       type="time"
                       value={formData.time}
-                      onChange={(e) => setFormData({...formData, time: e.target.value})}
-                      className="bg-slate-900 border-slate-700 text-white mt-1"
+                      onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                      className="mt-1 bg-stone-950 border-stone-800 text-white focus-visible:ring-amber-600/20 focus-visible:border-amber-600/50"
                       required
                     />
                   </div>
 
                   {/* Duration */}
                   <div>
-                    <Label htmlFor="duration" className="text-slate-300">Duration</Label>
+                    <Label htmlFor="duration" className="text-stone-300">Duration</Label>
                     <select
                       id="duration"
                       value={formData.duration}
-                      onChange={(e) => setFormData({...formData, duration: e.target.value})}
-                      className="w-full bg-slate-900 border-slate-700 text-white rounded-md p-2 mt-1"
+                      onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                      className="mt-1 w-full rounded-lg bg-stone-950 border border-stone-800 px-3 py-2 text-sm text-stone-200 focus:outline-none focus:border-amber-600/50"
                     >
                       <option value="15">15 minutes</option>
                       <option value="30">30 minutes</option>
@@ -399,25 +431,29 @@ export default function SchedulePage() {
 
                   {/* Reason */}
                   <div>
-                    <Label htmlFor="reason" className="text-slate-300">Reason for Consultation *</Label>
+                    <Label htmlFor="reason" className="text-stone-300">Reason *</Label>
                     <Textarea
                       id="reason"
                       value={formData.reason}
-                      onChange={(e) => setFormData({...formData, reason: e.target.value})}
-                      placeholder="Describe the issue or reason for consultation..."
-                      className="bg-slate-900 border-slate-700 text-white mt-1"
-                      rows={3}
+                      onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                      placeholder="Briefly describe the issue (symptoms, duration, urgency)."
+                      className="mt-1 bg-stone-950 border-stone-800 text-white focus-visible:ring-amber-600/20 focus-visible:border-amber-600/50"
+                      rows={4}
                       required
                     />
+                    <div className="mt-2 flex items-start gap-2 text-xs text-stone-500">
+                      <AlertCircle className="h-4 w-4 text-stone-600 mt-0.5" />
+                      <span>Appointments must be scheduled in the future.</span>
+                    </div>
                   </div>
 
-                  <Button 
+                  <Button
                     type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 h-12"
+                    className="w-full h-11 bg-amber-600 hover:bg-amber-500 text-stone-950 font-semibold"
                     disabled={!formData.reason.trim()}
                   >
                     <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Schedule Appointment
+                    Request appointment
                   </Button>
                 </form>
               </Card>
