@@ -1,11 +1,10 @@
 'use client'
 
-import React, { useRef, useState } from 'react'
-import { motion, useScroll, useSpring, useMotionValue, useTransform } from 'framer-motion'
+import React, { useRef, useState, useEffect } from 'react'
+import { motion, useScroll, useSpring, useMotionValue } from 'framer-motion'
 import { 
-  ArrowRight, Wifi, Video, Brain, Activity, Heart, Thermometer, Database, 
-  Upload, Scan, Loader2, CheckCircle2, AlertCircle, TrendingUp, User, 
-  Signal, ShieldCheck, Mic, PhoneOff, LucideIcon 
+  ArrowRight, Wifi, Video, Brain, Activity, Upload, Scan, Loader2, 
+  CheckCircle2, AlertCircle, TrendingUp, User, Signal, LucideIcon ,Mic,PhoneOff
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
@@ -72,38 +71,100 @@ const MagneticButton: React.FC<MagneticButtonProps> = ({ children, className = "
   )
 }
 
-// --- 2. NEW: INTERACTIVE AI DEMO COMPONENT ---
+// --- 2. INTERACTIVE AI DEMO COMPONENT ---
+
+// --- 2. INTERACTIVE AI DEMO COMPONENT (MULTI-DETECTION) ---
 
 const InteractiveAIDemo = () => {
   const [file, setFile] = useState<string | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [result, setResult] = useState<AnalysisResult | null>(null)
+  
+  // Store ALL detections, not just one
+  const [detections, setDetections] = useState<any[]>([])
+  const [imageSize, setImageSize] = useState<{width: number, height: number} | null>(null)
+  
+  // Main result summary (e.g., "3 COWS DETECTED")
+  const [summary, setSummary] = useState<{status: string, count: number} | null>(null)
+  
+  const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    return () => {
+      if (file) URL.revokeObjectURL(file)
+    }
+  }, [file])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (selectedFile) {
+      if (!selectedFile.type.startsWith('image/')) {
+        setError('Please upload an image file')
+        return
+      }
+      
       setFile(URL.createObjectURL(selectedFile))
-      setResult(null)
-      simulateAnalysis()
+      setDetections([])
+      setSummary(null)
+      setError(null)
+      analyzeImage(selectedFile)
     }
   }
 
-  const simulateAnalysis = () => {
+  const analyzeImage = async (imageFile: File) => {
     setIsAnalyzing(true)
-    // Simulate network delay and processing
-    setTimeout(() => {
-      setIsAnalyzing(false)
-      // Randomly assign a status for the demo
-      const statuses = ["STANDING", "SITTING", "EATING", "RUMINATING"]
-      const randomStatus = statuses[Math.floor(Math.random() * statuses.length)]
-      setResult({
-        status: randomStatus,
-        confidence: (85 + Math.random() * 14).toFixed(1) + "%",
-        health: "OPTIMAL"
+    setError(null)
+    
+    try {
+      const formData = new FormData()
+      formData.append('image', imageFile)
+
+      const response = await fetch('/api/predict', {
+        method: 'POST',
+        body: formData,
       })
-    }, 2500)
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `Analysis failed: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      
+      if (!data.detections || data.detections.length === 0) {
+        throw new Error("No behavior detected.")
+      }
+
+      // Store all detections and image metadata
+      setDetections(data.detections)
+      setImageSize(data.imageSize)
+
+      // Create a summary for the text panel
+      setSummary({
+          status: "ANALYSIS COMPLETE",
+          count: data.detections.length
+      })
+
+    } catch (err) {
+      console.error('Analysis error:', err)
+      setError(err instanceof Error ? err.message : 'Analysis failed.')
+      setDetections([])
+    } finally {
+      setIsAnalyzing(false)
+    }
   }
+  
+  // Helper to convert pixel bbox to % for CSS
+  const getBoxStyle = (bbox: any) => {
+      if (!imageSize) return { opacity: 0 };
+      return {
+          left: `${(bbox.x / imageSize.width) * 100}%`,
+          top: `${(bbox.y / imageSize.height) * 100}%`,
+          width: `${(bbox.width / imageSize.width) * 100}%`,
+          height: `${(bbox.height / imageSize.height) * 100}%`,
+          opacity: 1
+      };
+  };
 
   return (
     <div className="w-full max-w-5xl mx-auto bg-stone-900 border border-stone-800 rounded-2xl overflow-hidden shadow-2xl">
@@ -127,13 +188,13 @@ const InteractiveAIDemo = () => {
                         </div>
                         <h3 className="text-xl font-bold text-stone-200 mb-2">Upload Footage</h3>
                         <p className="text-stone-500 text-sm mb-6 max-w-xs mx-auto">
-                            Upload an image or video clip of your cattle to test our behavior recognition model.
+                            Upload an image of your cattle to test our behavior recognition model.
                         </p>
                         <input 
                             type="file" 
                             ref={fileInputRef} 
                             onChange={handleFileChange} 
-                            accept="image/*,video/*" 
+                            accept="image/*" 
                             className="hidden" 
                         />
                         <Button 
@@ -145,6 +206,7 @@ const InteractiveAIDemo = () => {
                     </div>
                 ) : (
                     <div className="relative w-full h-full min-h-[300px] bg-black rounded-lg overflow-hidden group">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={file} alt="Upload" className="w-full h-full object-contain opacity-80" />
                         
                         {/* Scanning Effect Overlay */}
@@ -157,27 +219,28 @@ const InteractiveAIDemo = () => {
                              />
                         )}
 
-                        {/* Bounding Box (Visible after analysis) */}
-                        {!isAnalyzing && result && (
+                        {/* RENDER ALL BOXES */}
+                        {!isAnalyzing && detections.map((det, i) => (
                             <motion.div 
+                                key={i}
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="absolute inset-10 border-2 border-amber-500/50 rounded-lg flex flex-col justify-between p-2"
+                                transition={{ delay: i * 0.1 }} // Staggered animation
+                                style={getBoxStyle(det.bbox)}
+                                className="absolute border-2 border-amber-500/80 rounded-lg flex flex-col justify-between p-1 shadow-[0_0_15px_rgba(245,158,11,0.3)] hover:bg-amber-500/10 transition-colors"
                             >
-                                <div className="flex justify-between">
-                                    <span className="bg-amber-600 text-black text-[10px] font-bold px-1 py-0.5">ID: COW_01</span>
-                                    <span className="text-amber-500 text-[10px] font-mono">{result.confidence}</span>
-                                </div>
-                                <div className="text-right">
-                                    <Scan className="w-4 h-4 text-amber-500 ml-auto" />
+                                <div className="flex justify-between items-start -mt-6">
+                                    <span className="bg-amber-600 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-t-sm shadow-sm">
+                                        #{i+1} {det.class.toUpperCase()}
+                                    </span>
                                 </div>
                             </motion.div>
-                        )}
+                        ))}
                         
                         <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => { setFile(null); setResult(null); }}
+                            onClick={() => { setFile(null); setDetections([]); setSummary(null); }}
                             className="absolute top-2 right-2 text-white hover:bg-stone-800/80"
                         >
                             Reset
@@ -205,34 +268,46 @@ const InteractiveAIDemo = () => {
                                 <Loader2 className="w-3 h-3 animate-spin" /> 
                                 Processing frames...
                             </div>
-                            <div className="text-stone-600 pl-4"> Extracting features...</div>
-                            <div className="text-stone-600 pl-4"> Normalizing inputs...</div>
+                        </div>
+                    )}
+                    
+                    {error && (
+                        <div className="text-red-500 mt-4 border border-red-900/50 p-2 bg-red-900/10 rounded">
+                            <div className="flex items-center gap-2 font-bold">
+                                <AlertCircle className="w-3 h-3" /> ERROR
+                            </div>
+                            <div className="pl-5 text-xs opacity-80">{error}</div>
                         </div>
                     )}
 
-                    {!isAnalyzing && result && (
+                    {!isAnalyzing && summary && (
                         <motion.div 
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             className="mt-4 p-4 border border-stone-800 bg-stone-900/50 rounded"
                         >
                             <div className="flex items-center gap-2 text-green-500 mb-2">
-                                <CheckCircle2 className="w-4 h-4" /> ANALYSIS COMPLETE
+                                <CheckCircle2 className="w-4 h-4" /> SCAN COMPLETE
                             </div>
-                            <div className="grid grid-cols-2 gap-4 mt-4">
-                                <div>
-                                    <div className="text-stone-500 text-xs">DETECTED STATE</div>
-                                    <div className="text-2xl font-bold text-white">{result.status}</div>
+                            <div className="mt-4">
+                                <div className="text-stone-500 text-xs">OBJECTS DETECTED</div>
+                                <div className="text-3xl font-bold text-white mb-4">{summary.count} <span className="text-lg text-stone-500 font-normal">Cows</span></div>
+                                
+                                {/* Mini list of results */}
+                                <div className="space-y-2 max-h-32 overflow-y-auto pr-2">
+                                    {detections.map((d, i) => (
+                                        <div key={i} className="flex justify-between items-center text-xs border-b border-stone-800 pb-1">
+                                            <span className="text-stone-300">#{i+1} {d.class.toUpperCase()}</span>
+                                            <span className="text-amber-500">{d.confidence}</span>
+                                        </div>
+                                    ))}
                                 </div>
-                                <div>
-                                    <div className="text-stone-500 text-xs">CONFIDENCE</div>
-                                    <div className="text-2xl font-bold text-amber-500">{result.confidence}</div>
-                                </div>
-                                <div className="col-span-2 pt-2 border-t border-stone-800">
-                                     <div className="text-stone-500 text-xs">HEALTH ASSESSMENT</div>
+
+                                <div className="mt-4 pt-2 border-t border-stone-800">
+                                     <div className="text-stone-500 text-xs">HERD HEALTH</div>
                                      <div className="text-stone-300 flex items-center gap-2">
                                         <Activity className="w-3 h-3 text-green-500" /> 
-                                        {result.health} - No anomalies detected.
+                                        OPTIMAL - No anomalies.
                                      </div>
                                 </div>
                             </div>
@@ -244,6 +319,7 @@ const InteractiveAIDemo = () => {
     </div>
   )
 }
+
 
 // --- 3. EXISTING COMPONENTS (Schematic, Stack) ---
 
@@ -279,7 +355,7 @@ const SchematicReveal = () => {
                     LIVE_FEED
                 </motion.h2>
             </div>
-
+            
             <motion.div 
                 variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.5 } } }}
                 className="absolute inset-0 pointer-events-none"
@@ -361,7 +437,8 @@ const FeatureStack = () => {
 export default function GauSevaEngineering() {
   const { scrollYProgress } = useScroll()
   const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 })
-const router = useRouter()
+  const router = useRouter()
+
   return (
     <div className="bg-stone-950 min-h-screen text-stone-200 font-sans selection:bg-amber-600 selection:text-white overflow-x-hidden">
       
@@ -498,7 +575,7 @@ const router = useRouter()
                                             transition={{ duration: 2, ease: "linear" }}
                                          />
                                     </svg>
-
+                                    
                                     {/* Simulated "Actual" Data with Anomaly (Amber/Red) */}
                                     <svg className="absolute inset-0 w-full h-full overflow-visible">
                                         <motion.path
@@ -583,14 +660,15 @@ const router = useRouter()
       <section id="demo" className="px-6 py-32 bg-stone-950 border-t border-stone-900">
           <div className="max-w-[90vw] mx-auto mb-16 text-center">
                <h2 className="text-4xl md:text-6xl font-black text-white mb-6">TRY THE <span className="text-amber-600">VISION ENGINE</span></h2>
-               <p className="text-stone-400 max-w-2xl mx-auto">Upload a photo or video to see our behavior recognition model in real-time. (Demo Mode: Uses simulated inference)</p>
+               <p className="text-stone-400 max-w-2xl mx-auto">Upload a photo to see our behavior recognition model in real-time. (Demo Mode: Uses simulated inference)</p>
           </div>
           <div className="px-6">
             <InteractiveAIDemo />
           </div>
       </section>
 
-      <section className="px-6 py-32 bg-stone-950 border-t border-stone-900 relative overflow-hidden">
+      {/* SECTION: VET NETWORK */}
+      <section id="network" className="px-6 py-32 bg-stone-950 border-t border-stone-900 relative overflow-hidden">
             {/* Background Texture */}
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#1c1917_1px,transparent_1px),linear-gradient(to_bottom,#1c1917_1px,transparent_1px)] bg-[size:4rem_4rem] -z-10 opacity-20" />
             
@@ -691,176 +769,49 @@ const router = useRouter()
                                         </div>
                                         <div className="text-2xl font-mono text-white font-bold">68 <span className="text-xs text-stone-500">BPM</span></div>
                                     </motion.div>
-
-                                    <motion.div 
-                                        initial={{ x: 20, opacity: 0 }}
-                                        whileInView={{ x: 0, opacity: 1 }}
-                                        transition={{ delay: 0.7 }}
-                                        className="bg-black/80 backdrop-blur border border-amber-500/30 p-3 rounded-lg"
-                                    >
-                                        <div className="flex items-center justify-between mb-1">
-                                            <span className="text-[10px] text-stone-400 font-mono">BODY_TEMP</span>
-                                            <ShieldCheck className="w-3 h-3 text-green-500" />
-                                        </div>
-                                        <div className="text-2xl font-mono text-white font-bold">38.5 <span className="text-xs text-stone-500">°C</span></div>
-                                    </motion.div>
                                 </div>
 
-                                {/* Call Controls */}
-                                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-stone-800 rounded-full flex items-center justify-center hover:bg-stone-700 cursor-pointer transition-colors text-white">
-                                        <Mic className="w-5 h-5" />
+                                <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
+                                    <div className="flex gap-2">
+                                        <div className="w-8 h-8 bg-stone-800/80 rounded flex items-center justify-center text-white"><Mic className="w-4 h-4" /></div>
+                                        <div className="w-8 h-8 bg-stone-800/80 rounded flex items-center justify-center text-white"><Video className="w-4 h-4" /></div>
                                     </div>
-                                    <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700 cursor-pointer shadow-lg shadow-red-900/50 transition-transform hover:scale-105 text-white">
-                                        <PhoneOff className="w-8 h-8" />
+                                    <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-red-900/50">
+                                        <PhoneOff className="w-5 h-5" />
                                     </div>
-                                    <div className="w-12 h-12 bg-stone-800 rounded-full flex items-center justify-center hover:bg-stone-700 cursor-pointer transition-colors text-white">
-                                        <Video className="w-5 h-5" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Connection Status Footer */}
-                            <div className="bg-stone-950 p-3 border-t border-stone-800 flex justify-between items-center text-[10px] font-mono text-stone-500">
-                                <div>SESSION_TIME: 04:12</div>
-                                <div className="flex items-center gap-2">
-                                    <Wifi className="w-3 h-3" />
-                                    UPLINK_STABLE
                                 </div>
                             </div>
                         </motion.div>
-
-                        {/* Decor Elements */}
-                        <div className="absolute -z-10 -top-10 -right-10 w-64 h-64 bg-amber-600/10 rounded-full blur-3xl" />
-                        <div className="absolute -z-10 -bottom-10 -left-10 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl" />
+                        
+                        {/* Decorative Background Elements */}
+                        <div className="absolute -top-10 -right-10 w-40 h-40 bg-amber-600/10 rounded-full blur-3xl -z-10" />
+                        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-blue-600/10 rounded-full blur-3xl -z-10" />
                     </div>
                 </div>
             </div>
-        </section>
-
-      {/* SECTION: ARCHITECTURE STACK */}
-      <section id="network" className="px-6 py-32 bg-stone-950">
-          <div className="max-w-[90vw] mx-auto mb-16">
-               <h2 className="text-6xl md:text-8xl font-black text-stone-800 select-none">SYSTEM<br/>ARCHITECTURE</h2>
-          </div>
-          <FeatureStack />
       </section>
 
-      {/* SECTION: TECHNICAL SPECS */}
-      <section className="py-32 border-y border-stone-800 bg-stone-900/30">
-        <div className="max-w-7xl mx-auto px-6">
-            <div className="grid md:grid-cols-2 gap-16 items-center">
-                <div>
-                     <div className="inline-block px-3 py-1 border border-amber-600/30 bg-amber-600/10 rounded-full mb-6">
-                        <span className="text-amber-500 text-xs font-mono font-bold flex items-center gap-2">
-                            <Wifi className="h-3 w-3" /> HARDWARE_TELEMETRY
-                        </span>
-                    </div>
-                    <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-                        Military-Grade <br/>
-                        <span className="text-amber-600">Biometric Sensors</span>
-                    </h2>
-                    <p className="text-stone-400 text-lg mb-8 leading-relaxed">
-                        Each collar acts as an edge-computing node, processing vital signs locally before transmitting anomalies to the vet network.
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        {[
-                            { icon: Heart, label: "HEART_RATE", value: "Real-time ECG" },
-                            { icon: Thermometer, label: "THERMAL", value: "±0.1°C Precision" },
-                            { icon: Activity, label: "GYROSCOPE", value: "Rumination Tracking" },
-                            { icon: Database, label: "OFFLINE_MODE", value: "24hr Data Cache" }
-                        ].map((spec, i) => (
-                            <div key={i} className="bg-stone-900 border border-stone-800 p-4 rounded-lg hover:border-amber-600/50 transition-colors">
-                                <spec.icon className="h-5 w-5 text-amber-600 mb-2" />
-                                <p className="text-stone-300 font-bold text-xs font-mono">{spec.label}</p>
-                                <p className="text-stone-500 text-xs">{spec.value}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                
-                <div className="relative h-[400px] bg-stone-900 border border-stone-800 rounded-2xl p-8 flex items-center justify-center overflow-hidden">
-                     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
-                     <div className="relative z-10 text-center">
-                        <div className="w-48 h-48 rounded-full border-2 border-dashed border-stone-700 mx-auto mb-8 animate-spin-slow flex items-center justify-center">
-                            <div className="w-40 h-40 rounded-full border border-amber-600/30" />
-                        </div>
-                        <div className="font-mono text-amber-600 text-xs">Waiting for hardware connection...</div>
-                     </div>
-                </div>
-            </div>
+      {/* Feature Stack (3D Cards) */}
+      <section className="bg-stone-950">
+        <div className="max-w-[90vw] mx-auto py-24 border-t border-stone-800">
+            <h2 className="text-center text-stone-500 font-mono text-sm mb-12">SYSTEM_ARCHITECTURE_OVERVIEW</h2>
+            <FeatureStack />
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer id="about" className="relative bg-amber-600 text-stone-950 py-20 px-6 overflow-hidden">
-           <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-              <div className="w-[200%] h-[200%] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] animate-grain" />
-           </div>
-
-           <div className="max-w-7xl mx-auto relative z-10">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-12">
-                  <div>
-                      <h2 className="text-6xl md:text-8xl font-black tracking-tighter mb-8">
-                          SYSTEM <br/> READY.
-                      </h2>
-                      <div className="flex gap-4">
-                          <Button className="h-16 px-10 bg-stone-950 text-white hover:bg-stone-800 rounded-none text-xl font-bold border-2 border-stone-950 hover:border-white transition-all">
-                              Deploy Now
-                          </Button>
-                      </div>
-                  </div>
-
-                  <div className="font-mono text-sm space-y-2 text-stone-900/70 font-bold">
-                      <p>GAU SEVA INITIATIVE</p>
-                      <p>BUILD_VER: 2.4.0</p>
-                      <p>LOC: INDIA</p>
-                      <p className="pt-4">© 2025 OPEN SOURCE</p>
-                  </div>
+      {/* Footer */}
+      <footer className="bg-stone-950 border-t border-stone-800 py-12 px-6">
+          <div className="max-w-[90vw] mx-auto flex flex-col md:flex-row justify-between items-center text-stone-500 text-sm">
+              <div className="mb-4 md:mb-0">
+                  &copy; {new Date().getFullYear()} GAU SEVA ENGINEERING.
               </div>
-           </div>
+              <div className="flex gap-6 font-mono">
+                  <a href="#" className="hover:text-amber-600">GITHUB</a>
+                  <a href="#" className="hover:text-amber-600">DOCS</a>
+                  <a href="#" className="hover:text-amber-600">CONTACT</a>
+              </div>
+          </div>
       </footer>
-
-      <style jsx global>{`
-        .text-stroke-white {
-          -webkit-text-stroke: 1px rgba(255,126,0,0.8);
-          color: transparent;
-        }
-        .animate-spin-slow {
-          animation: spin 8s linear infinite;
-        }
-        .animate-grain {
-          animation: grain 8s steps(10) infinite;
-        }
-        /* Custom scrollbar for console */
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #1c1917; 
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #44403c; 
-          border-radius: 2px;
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes grain {
-          0%, 100% { transform: translate(0, 0); }
-          10% { transform: translate(-5%, -10%); }
-          20% { transform: translate(-15%, 5%); }
-          30% { transform: translate(7%, -25%); }
-          40% { transform: translate(-5%, 25%); }
-          50% { transform: translate(-15%, 10%); }
-          60% { transform: translate(15%, 0%); }
-          70% { transform: translate(0%, 15%); }
-          80% { transform: translate(3%, 35%); }
-          90% { transform: translate(-10%, 10%); }
-        }
-      `}</style>
     </div>
   )
 }
