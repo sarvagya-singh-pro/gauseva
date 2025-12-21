@@ -4,10 +4,7 @@ import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
 
-// Force Node.js runtime (Critical for ONNX/Sharp)
-path.join(process.cwd(), 'public', 'yolov8n.onnx');
-path.join(process.cwd(), 'public', 'best.onnx');
-
+// Force Node.js runtime (Critical for ONNX/Sharp in Vercel)
 export const runtime = 'nodejs'; 
 export const dynamic = 'force-dynamic';
 
@@ -15,10 +12,30 @@ export const dynamic = 'force-dynamic';
 let detectorSession: ort.InferenceSession | null = null;
 let classifierSession: ort.InferenceSession | null = null;
 
+// Helper: Smartly find model files in Vercel's shifting file system
+function getModelPath(filename: string): string {
+    const candidates = [
+        path.join(process.cwd(), 'public', filename),       // Standard Local / Vercel with Config
+        path.join(process.cwd(), filename),                 // Vercel Root Fallback
+        path.join(__dirname, 'public', filename),           // Bundled Relative
+        path.join(__dirname, filename)                      // Flat Bundled
+    ];
+
+    for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) {
+            console.log(`✅ Loaded Model: ${candidate}`);
+            return candidate;
+        }
+    }
+
+    // Diagnostic Log if failed
+    console.error(`❌ Model ${filename} NOT FOUND. Scanned:`, candidates);
+    throw new Error(`Model ${filename} could not be located.`);
+}
+
 async function getDetector() {
   if (!detectorSession) {
-    const modelPath = path.join(process.cwd(), 'public', 'yolov8n.onnx');
-    if (!fs.existsSync(modelPath)) throw new Error(`Model not found at: ${modelPath}`);
+    const modelPath = getModelPath('yolov8n.onnx');
     detectorSession = await ort.InferenceSession.create(modelPath);
   }
   return detectorSession;
@@ -26,8 +43,7 @@ async function getDetector() {
 
 async function getClassifier() {
   if (!classifierSession) {
-    const modelPath = path.join(process.cwd(), 'public', 'best.onnx');
-    if (!fs.existsSync(modelPath)) throw new Error(`Model not found at: ${modelPath}`);
+    const modelPath = getModelPath('best.onnx');
     classifierSession = await ort.InferenceSession.create(modelPath);
   }
   return classifierSession;
@@ -84,7 +100,7 @@ export async function POST(req: NextRequest) {
     const originalHeight = metadata.height || 640;
 
     // ==========================================
-    // STAGE 1: DETECT (Find Cows)
+    // STAGE 1: DETECT (Find Cows with YOLOv8n)
     // ==========================================
     const { data: detectData } = await sharp(buffer)
       .resize(640, 640, { fit: 'fill' })
@@ -102,8 +118,9 @@ export async function POST(req: NextRequest) {
     }
 
     const detector = await getDetector();
+    // Assuming standard YOLO input name 'images'
     const tensor = new ort.Tensor('float32', floatData, [1, 3, 640, 640]);
-    const results = await detector.run({ images: tensor }); // Assuming input name is 'images'
+    const results = await detector.run({ [detector.inputNames[0]]: tensor }); 
     const output = results[detector.outputNames[0]].data as Float32Array;
     const dims = results[detector.outputNames[0]].dims;
 
@@ -113,7 +130,7 @@ export async function POST(req: NextRequest) {
     const numFeatures = isTransposed ? dims[2] : dims[1];
 
     const rawDetections = [];
-    const cowClassIdx = 23; // 4 box + 19 (Cow) = 23
+    const cowClassIdx = 23; // 4 box coords + 19th class (Cow) = index 23
 
     for (let i = 0; i < numAnchors; i++) {
         let score, x, y, w, h;
@@ -159,7 +176,7 @@ export async function POST(req: NextRequest) {
     const classifier = await getClassifier();
     const finalResults = [];
 
-    // Process TOP 3 cows
+    // Process TOP 3 cows to avoid timeouts
     for (const cow of cows.slice(0, 3)) {
         const left = Math.max(0, Math.floor(cow.x));
         const top = Math.max(0, Math.floor(cow.y));
@@ -196,7 +213,6 @@ export async function POST(req: NextRequest) {
             }
             
             // Assuming classes are alphabetical: 0=lying, 1=standing
-            // ADJUST THIS ARRAY if your training folders were different
             const labels = ['lying', 'standing']; 
             
             finalResults.push({
