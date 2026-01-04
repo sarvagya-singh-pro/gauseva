@@ -453,8 +453,7 @@ export default function GauSevaEngineering() {
                </div>
                <div className="flex flex-col">
                   <span className="font-bold tracking-tighter leading-none text-white">GAU SEVA</span>
-                  <span className="text-[9px] font-mono text-amber-600">NON-PROFIT INITIATIVE</span>
-               </div>
+                        </div>
           </div>
           
           <div className="hidden md:flex gap-8 font-mono text-xs tracking-widest text-stone-400">
